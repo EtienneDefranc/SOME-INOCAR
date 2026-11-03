@@ -1,0 +1,9 @@
+# OPCIONAL (recomendado). Copernicus Marine con datos reales (backend/copernicus/): Copernicus Marine Toolbox.
+# Lee el análisis físico global GLOBAL_ANALYSISFORECAST_PHY_001_024 (DOI 10.48670/moi-00016) y la climatología
+# GLORYS12 (GLOBAL_MULTIYEAR_PHY_001_030, DOI 10.48670/moi-00021) del servicio ARCO de Copernicus Marine.
+# Requiere una cuenta gratuita: después de instalar, ejecute UNA VEZ en una consola de este equipo
+#   copernicusmarine login
+# (el SOME nunca pide ni guarda usuario o contraseña). Sin este paquete o sin credenciales, el SOME sirve lo que
+# haya en la caché local datos/copernicus/ y, lo demás, con datos simulados señalados como tales.
+#   pip install -r requirements-copernicus.txt
+copernicusmarine>=2.5,<3

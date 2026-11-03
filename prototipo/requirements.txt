@@ -1,0 +1,21 @@
+# Dependencias del prototipo SOME (Python 3.13). Solo bibliotecas ya instaladas en el equipo de demostración.
+fastapi>=0.116
+uvicorn>=0.35
+numpy>=2.2
+pandas>=2.2
+xarray>=2025.1
+scipy>=1.14
+matplotlib>=3.10
+reportlab>=4.4
+jinja2>=3.1
+pydantic>=2.11
+Pillow>=11
+# Acceso real a CHIRPS v3 (backend/chirps/): HTTP por rangos (GeoTIFF diario y NetCDF4/HDF5 mensual)
+requests>=2.32
+h5py>=3.11
+# Acceso real a NOAA OISST v2.1 (backend/noaa/): xarray abre con h5netcdf el NetCDF4 de NOAA PSL y NOAA NCEI
+h5netcdf>=1.3
+# OPCIONAL: la réplica dynamical.org de CHIRPS v3 (icechunk y zarr) está en requirements-replica.txt.
+# Sin ella el prototipo funciona con el servidor del CHC y la caché local. ejecutar.bat / ejecutar.ps1
+# intentan instalarla y siguen aunque falle.
+# OPCIONAL: Copernicus Marine con datos reales (copernicusmarine) está en requirements-copernicus.txt; ejecutar.bat / ejecutar.ps1 lo instalan y siguen aunque falle.

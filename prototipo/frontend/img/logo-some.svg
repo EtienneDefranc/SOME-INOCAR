@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Logotipo SOME">
+  <title>SOME — Sistema de Observación del Mar Equinoccial</title>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1B6E8F"/>
+      <stop offset="1" stop-color="#0B4F6C"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#g)"/>
+  <!-- línea ecuatorial -->
+  <line x1="10" y1="22" x2="54" y2="22" stroke="#F4A261" stroke-width="2" stroke-dasharray="3 3" stroke-linecap="round" opacity="0.95"/>
+  <!-- sol -->
+  <circle cx="46" cy="14" r="4" fill="#F4A261"/>
+  <!-- olas -->
+  <path d="M8 34c6-6 12-6 18 0s12 6 18 0 8-4 12-2" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M8 43c6-6 12-6 18 0s12 6 18 0 8-4 12-2" fill="none" stroke="#9FD5E8" stroke-width="3" stroke-linecap="round"/>
+  <path d="M8 52c6-6 12-6 18 0s12 6 18 0 8-4 12-2" fill="none" stroke="#5BB5D5" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+</svg>

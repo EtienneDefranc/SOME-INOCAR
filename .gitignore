@@ -1,0 +1,5 @@
+prototipo/datos/*
+!prototipo/datos/.gitkeep
+__pycache__/
+*.pyc
+.pytest_cache/

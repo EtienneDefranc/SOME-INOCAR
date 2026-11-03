@@ -1,0 +1,54 @@
+﻿# SOME — Sistema de Observación del Mar Equinoccial · exportación de mapa
+# Fuente: CHIRPS v3 (Climate Hazards Center, UCSB) (CHC-CHIRPS-v3.0)
+# Crédito: CHIRPS v3.0, Climate Hazards Center, UC Santa Barbara (Funk et al., 2026), vía la réplica de dynamical.org (CC BY 4.0).
+# Licencia: Dominio público registrado en Creative Commons (el CHC renuncia a todos los derechos de autor) y publicado con licencia Creative Commons Atribución 4.0 Internacional (CC BY 4.0); se solicita citar a Funk et al. (2026). Fuente: chc.ucsb.edu/data/chirps3. La réplica de dynamical.org redistribuye el mismo producto con licencia CC BY 4.0.
+# Variable: Precipitación (mm/día)
+# Área: Guayas
+# Periodo de referencia: 1991-2020
+# Método: Promedio de los campos diarios de 01/02/2026 – 28/02/2026 (28 días). Anomalía = valor − climatología mensual 1991-2020; en cada celda se resta la climatología de esa misma celda y del mismo mes. Climatología 1991-2020 calculada con la réplica dynamical.org de CHIRPS v3 (CC BY 4.0). Recorte de 6.25° S – 6.25° N y 95.25° O – 77.75° O de CHIRPS v3 diario, obtenido por uno de dos caminos que entregan el mismo producto del CHC: (1) el servidor del Climate Hazards Center, leyendo por rangos HTTP solo el recorte del GeoTIFF diario (final «rnl», disgregación diaria con ERA5, a 0.25° nativo; preliminar «sat», disgregación con IMERG, a 0.05°); o (2) la réplica pública de dynamical.org en formato Zarr/Icechunk (final y preliminar a 0.05°, en kg m⁻² s⁻¹ convertidos a mm/día y con los valores redondeados a 8 bits de mantisa, error ≤ 0.2 %). Lo que llega a 0.05° se agrega a 0.25° con la media de las celdas válidas de cada bloque de 5×5 (se exigen al menos 13 de 25). Reproyección a la malla SOME (centros en múltiplos de 0.25°): cada centro SOME es la esquina común de 4 celdas nativas y toma la media de las válidas si hay al menos 2 de 4; si no, sin dato. El valor −9999, los NaN y los valores menores que −1 se tratan como sin dato (mar); los negativos pequeños se fijan en 0. Unidades: mm/día. Origen de los días de esta consulta: réplica dynamical.org: 28 días. Visualización suavizada por interpolación entre centros de celda; el valor de cada celda se consulta sin interpolar.
+# Fecha de corte: 25/10/2026
+# Generado: 30/10/2026 22:26
+# Origen de los días: réplica dynamical.org: 28 días
+# Climatología 1991-2020 calculada con la réplica dynamical.org de CHIRPS v3 (CC BY 4.0)
+# Datos reales: CHIRPS v3 (CHC, UCSB)
+latitud,longitud,valor
+-3.250,-80.500,
+-3.250,-80.250,11.49
+-3.250,-80.000,10.05
+-3.250,-79.750,8.24
+-3.250,-79.500,4.77
+-3.000,-80.500,
+-3.000,-80.250,12.55
+-3.000,-80.000,11.90
+-3.000,-79.750,10.18
+-3.000,-79.500,6.17
+-2.750,-80.500,13.17
+-2.750,-80.250,13.34
+-2.750,-80.000,13.45
+-2.750,-79.750,11.69
+-2.750,-79.500,8.07
+-2.500,-80.500,10.17
+-2.500,-80.250,12.30
+-2.500,-80.000,13.31
+-2.500,-79.750,12.05
+-2.500,-79.500,10.70
+-2.250,-80.500,8.24
+-2.250,-80.250,10.52
+-2.250,-80.000,11.44
+-2.250,-79.750,11.13
+-2.250,-79.500,12.16
+-2.000,-80.500,7.21
+-2.000,-80.250,7.60
+-2.000,-80.000,6.86
+-2.000,-79.750,7.65
+-2.000,-79.500,9.62
+-1.750,-80.500,6.36
+-1.750,-80.250,5.16
+-1.750,-80.000,3.58
+-1.750,-79.750,4.41
+-1.750,-79.500,6.52
+-1.500,-80.500,4.68
+-1.500,-80.250,3.83
+-1.500,-80.000,2.97
+-1.500,-79.750,3.89
+-1.500,-79.500,6.22

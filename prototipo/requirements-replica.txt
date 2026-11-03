@@ -1,0 +1,8 @@
+# OPCIONAL. Réplica pública de CHIRPS v3 en dynamical.org (backend/chirps/espejo.py): almacenes
+# Icechunk/Zarr en S3 (us-west-2), acceso anónimo, licencia CC BY 4.0, tercero sin garantía de servicio.
+# Con estas bibliotecas el SOME obtiene de la réplica todo lo que cubre (y la climatología mensual
+# 1981-2022 en ~1.5 min) y sigue funcionando cuando el servidor del CHC no responde. Sin ellas usa solo
+# el servidor del CHC y la caché local; el estado de «Estado de fuentes» lo indica.
+#   pip install -r requirements-replica.txt
+icechunk>=2.3,<3
+zarr>=3.4,<4
