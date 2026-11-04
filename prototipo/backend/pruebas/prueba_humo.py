@@ -1052,8 +1052,12 @@ def ejecutar() -> int:
         r = c.get("/api/reportes/plantillas", headers=T)
         codigo(r, 200, "GET /api/reportes/plantillas")
         plantillas = r.json()
-        verificar([p["id"] for p in plantillas] == ["boletin_erfen", "informe_variable", "comparativo"],
-                  "tres plantillas en el orden del contrato")
+        verificar([p["id"] for p in plantillas] == ["boletin_erfen", "informe_variable", "comparativo", "personalizado"],
+                  "cuatro plantillas en el orden del contrato (la cuarta, el reporte personalizado)")
+        personalizada = next((p for p in plantillas if p["id"] == "personalizado"), {})
+        verificar({t["id"] for t in personalizada.get("tipos_seccion", [])}
+                  == {"texto", "mapa", "serie", "perfil", "comparacion", "tabla"},
+                  "el reporte personalizado ofrece seis tipos de sección")
         verificar(all(p["parametros"] and all({"id", "etiqueta", "tipo"} <= set(par) for par in p["parametros"])
                       for p in plantillas), "cada parámetro tiene id, etiqueta y tipo")
         codigo(c.post("/api/reportes", {"plantilla": "no_existe", "parametros": {}}, headers=T), 404,
@@ -1077,7 +1081,23 @@ def ejecutar() -> int:
                                           "fin": un_anio_antes(CORTE_NOAA).isoformat()},
                             "periodo_b": {"inicio": inicio_b.isoformat(), "fin": corte_noaa},
                             "autor": "Dra. María Vera"},
+            # Reporte personalizado (RF-09.3) solo con secciones de NOAA OISST y texto: su procedencia es la de NOAA
+            "personalizado": {"titulo": "Informe mensual de la dirección", "destinatario": "Dirección de Oceanografía",
+                              "periodo": {"inicio": inicio_b.isoformat(), "fin": corte_noaa},
+                              "periodo_referencia": "1991-2020", "autor": "Dra. María Vera",
+                              "secciones": [
+                                  {"tipo": "texto", "titulo": "Introducción", "texto": "Uno.\n\nDos."},
+                                  {"tipo": "mapa", "fuente": "noaa_oisst", "variable": "sst", "recorte": "nino12",
+                                   "modo": "anomalia"},
+                                  {"tipo": "serie", "fuente": "noaa_oisst", "variable": "sst", "recorte": "nino12"},
+                                  {"tipo": "comparacion", "fuente": "noaa_oisst", "variable": "sst",
+                                   "recorte": "nino12"},
+                                  {"tipo": "tabla", "fuente": "noaa_oisst", "variable": "sst", "recorte": "nino12"}]},
         }
+        for malo, mensaje in (({"secciones": []}, "reporte personalizado sin secciones"),
+                              ({"secciones": [{"tipo": "video"}]}, "sección de tipo desconocido"),
+                              ({"secciones": [{"tipo": "texto", "texto": ""}]}, "sección de texto vacía")):
+            codigo(c.post("/api/reportes", {"plantilla": "personalizado", "parametros": malo}, headers=T), 422, mensaje)
         # Boletín ERFEN: SST e índice de NOAA + perfil de Copernicus + lluvia de CHIRPS (real): «real» si NOAA y
         # Copernicus son reales (y sin respaldo posible), «mixto» si alguno es simulado; con solo caché, cualquiera de
         # los dos. Informe de Copernicus y comparativo de NOAA: según el modo de cada uno.
@@ -1104,7 +1124,7 @@ def ejecutar() -> int:
             verificar(d["estado"] == "listo" and d["progreso"] == 100 and d["archivo"] == f"/api/reportes/{tid}/descargar",
                       f"«{plantilla}» listo con archivo ({d.get('mensaje')})")
             esperadas = {"boletin_erfen": esperadas_boletin, "informe_variable": COP.procedencias(),
-                         "comparativo": NOAA.procedencias()}[plantilla]
+                         "comparativo": NOAA.procedencias(), "personalizado": NOAA.procedencias()}[plantilla]
             verificar(d.get("procedencia") in esperadas,
                       f"«{plantilla}» con procedencia «{' o '.join(esperadas)}» "
                       f"(se obtuvo «{d.get('procedencia')}»: {d.get('insignia')})")
@@ -1134,7 +1154,9 @@ def ejecutar() -> int:
         codigo(r, 200, "GET /api/trabajos (mvera)")
         lista = r.json()
         verificar(len(lista) >= 5 and all(t["estado"] == "listo" for t in lista),
-                  f"mvera ve {len(lista)} trabajos y todos están listos (2 iniciales + 3 nuevos)")
+                  f"mvera ve {len(lista)} trabajos y todos están listos (2 iniciales + 4 nuevos)")
+        verificar(any(t["titulo"].startswith("Reporte personalizado — Informe mensual de la dirección") for t in lista),
+                  "el trabajo del reporte personalizado lleva su título y su destinatario")
         verificar(any("Boletín" in t["titulo"] for t in lista) and all(t["archivo"] for t in lista),
                   "los trabajos iniciales (boletín e informe) se generaron de verdad")
         r = c.get("/api/trabajos", headers=cab(tokens["jloor"]))
@@ -1145,6 +1167,37 @@ def ejecutar() -> int:
         r = c.get("/api/trabajos", headers=cab(tokens["admin"]))
         verificar(r.status_code == 200 and len(r.json()) >= 5, "el administrador ve todos los trabajos")
         codigo(c.get("/api/trabajos/99999", headers=T), 404, "trabajo inexistente")
+
+        # Plantillas guardadas del reporte personalizado (RF-09.3)
+        datos_plantilla = {"nombre": "Informe mensual", "descripcion": "Para la dirección", "compartida": False,
+                           "parametros": parametros["personalizado"]}
+        r = c.post("/api/reportes/mis-plantillas", datos_plantilla, headers=T)
+        if codigo(r, 201, "POST /api/reportes/mis-plantillas (privada)"):
+            privada = r.json()
+            verificar(privada["propia"] and len(privada["parametros"]["secciones"]) == 5,
+                      "la plantilla guardada conserva sus cinco secciones")
+            r = c.get("/api/reportes/mis-plantillas", headers=cab(tokens["jloor"]))
+            verificar(r.status_code == 200 and all(p["id"] != privada["id"] for p in r.json()),
+                      "otro usuario no ve una plantilla privada")
+            r = c.post("/api/reportes/mis-plantillas", dict(datos_plantilla, nombre="Compartida", compartida=True),
+                       headers=T)
+            compartida = r.json() if codigo(r, 201, "POST /api/reportes/mis-plantillas (compartida)") else {}
+            mismo_departamento = (almacen.usuario_por_nombre("jloor") or {}).get("departamento") == \
+                (almacen.usuario_por_nombre("mvera") or {}).get("departamento")
+            if compartida and mismo_departamento:
+                r = c.get("/api/reportes/mis-plantillas", headers=cab(tokens["jloor"]))
+                verificar(any(p["id"] == compartida["id"] and not p["propia"] for p in r.json()),
+                          "una plantilla compartida aparece para el resto del departamento")
+                codigo(c.delete(f"/api/reportes/mis-plantillas/{compartida['id']}", headers=cab(tokens["jloor"])), 403,
+                       "solo quien creó la plantilla puede eliminarla")
+            codigo(c.post("/api/reportes/mis-plantillas", dict(datos_plantilla, parametros={"secciones": []}),
+                          headers=T), 422, "no se guarda una plantilla sin secciones")
+            for p in (privada, compartida):
+                if p:
+                    codigo(c.delete(f"/api/reportes/mis-plantillas/{p['id']}", headers=T), 200,
+                           f"DELETE /api/reportes/mis-plantillas/{p['id']}")
+            codigo(c.delete(f"/api/reportes/mis-plantillas/{privada['id']}", headers=T), 404,
+                   "eliminar una plantilla que ya no existe")
 
         # --- panel -------------------------------------------------------------
         seccion("Panel personal")

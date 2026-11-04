@@ -1239,9 +1239,16 @@
         sel.value = primera.id;
         this.v.variable = primera.id;
       }
+      // Ayuda de la variable: se actualiza al elegir otra (antes quedaba la de la primera variable)
+      const ayudaVar = crear('<div class="cc-ayuda"></div>');
+      const ponerAyuda = (info) => {
+        ayudaVar.textContent = (info && info.descripcion) || '';
+        ayudaVar.style.display = info && info.descripcion ? '' : 'none';
+      };
       sel.addEventListener('change', () => {
         this.v.variable = sel.value;
         const infoNueva = variable(this.v.fuente, this.v.variable);
+        ponerAyuda(infoNueva);
         if (infoNueva && infoNueva.es_vector && this.op.mostrarVectores) {
           // Al elegir «Corrientes (vectores)» se dibujan las flechas sobre la magnitud
           this.v.vectores = true;
@@ -1254,8 +1261,8 @@
       });
       s.appendChild(campoVar);
 
-      const infoVar = variable(this.v.fuente, this.v.variable);
-      if (infoVar && infoVar.descripcion) s.appendChild(crear(`<div class="cc-ayuda">${esc(infoVar.descripcion)}</div>`));
+      ponerAyuda(variable(this.v.fuente, this.v.variable));
+      s.appendChild(ayudaVar);
 
       // Profundidad (solo variables 3D)
       this.campoProfundidad = crear(`<div class="campo"><label>Profundidad</label><select aria-label="Profundidad en metros"></select></div>`);

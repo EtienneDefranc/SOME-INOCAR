@@ -5,6 +5,12 @@
  * partir de `parametros` (tipos texto/fecha/periodo/recorte/opcion/booleano),
  * envío con POST /api/reportes, lista de trabajos con barra de progreso y mensaje
  * actualizada cada 1.5 s mientras haya trabajos activos, «Descargar PDF» y «Ver».
+ *
+ * Reporte personalizado (RF-09.3): el parámetro de tipo «secciones» se edita con
+ * una lista de secciones (texto, mapa, serie, perfil, comparación y tabla) que se
+ * agregan, ordenan y quitan; «Guardar como plantilla» lo guarda en
+ * /api/reportes/mis-plantillas (privada o compartida con el departamento) y
+ * «Mis plantillas» lo vuelve a abrir con sus secciones para cambiar solo el periodo.
  */
 (function () {
   'use strict';
@@ -18,7 +24,7 @@
   const TEXTO_ESTADO = { en_cola: 'En cola', procesando: 'Procesando', listo: 'Listo', error: 'Error' };
   const CLASE_ESTADO = { en_cola: 'insignia-info', procesando: 'insignia-aviso', listo: 'insignia-exito', error: 'insignia-peligro' };
   // Iconos de Flaticon UIcons (sin el prefijo «fi-rr-»)
-  const ICONO_PLANTILLA = { boletin_erfen: 'newspaper', informe_variable: 'chart-histogram', comparativo: 'balance-scale-left' };
+  const ICONO_PLANTILLA = { boletin_erfen: 'newspaper', informe_variable: 'chart-histogram', comparativo: 'balance-scale-left', personalizado: 'edit' };
 
   let estado = null;
 
@@ -48,6 +54,17 @@
       .rp-sondeo { font-size:12px; color:var(--texto-2); display:flex; align-items:center; gap:6px; }
       .rp-punto { width:8px; height:8px; border-radius:50%; background:var(--exito); display:inline-block; animation: rp-latido 1.5s infinite; }
       @keyframes rp-latido { 0%,100% { opacity:1 } 50% { opacity:.3 } }
+      .rp-secciones { display:flex; flex-direction:column; gap:8px; }
+      .rp-seccion { border:1px solid var(--borde); border-radius:var(--radio-sm, 6px); padding:8px 10px; background:var(--superficie-2, var(--superficie)); }
+      .rp-seccion-cabecera { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
+      .rp-seccion-acciones { display:flex; gap:4px; }
+      .rp-seccion-campos { display:grid; grid-template-columns: 1fr 1fr; gap:6px 8px; }
+      .rp-seccion-campos .campo { margin:0; }
+      .rp-seccion-campos .rp-ancho { grid-column: 1 / -1; }
+      .rp-seccion-campos textarea { width:100%; min-height:72px; resize:vertical; font:inherit; }
+      .rp-plantilla .rp-meta { font-size:12px; color:var(--texto-2); display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+      .rp-plantilla-guardada { position:relative; }
+      .rp-plantilla-guardada .rp-eliminar { position:absolute; top:8px; right:8px; }
     `);
   }
 
@@ -85,19 +102,75 @@
     });
     const inicial = plantillas.find((x) => x.id === estado.plantillaInicial) ? estado.plantillaInicial : plantillas[0].id;
     elegirPlantilla(inicial, true);
+    cargarMisPlantillas();
   }
 
-  function elegirPlantilla(id, esInicial) {
+  // Plantillas guardadas del reporte personalizado: las propias y las compartidas con el departamento
+  async function cargarMisPlantillas() {
+    const c = C();
+    const caja = estado.nodos.misPlantillasCaja;
+    let guardadas;
+    try {
+      guardadas = await SOME.api.get('/api/reportes/mis-plantillas');
+    } catch (e) {
+      return;   // sin esta lista el módulo sigue funcionando con las plantillas predefinidas
+    }
+    if (!estado) return;
+    estado.guardadas = Array.isArray(guardadas) ? guardadas : [];
+    const zona = estado.nodos.misPlantillas;
+    zona.innerHTML = '';
+    caja.hidden = !estado.guardadas.length;
+    estado.guardadas.forEach((g) => {
+      const n = ((g.parametros || {}).secciones || []).length;
+      const origen = g.propia ? (g.compartida ? 'Compartida con su departamento' : 'Privada') : `De ${g.propietario && g.propietario.nombre || 'otro usuario'}`;
+      const tarjeta = c.crear(`<div class="tarjeta rp-plantilla rp-plantilla-guardada" role="button" tabindex="0" data-guardada="${c.esc(g.id)}">
+        <span class="rp-icono" aria-hidden="true">${c.iconoFi('document')}</span>
+        <h3>${c.esc(g.nombre)}</h3>
+        <p>${c.esc(g.descripcion || (g.parametros || {}).titulo || '')}</p>
+        <span class="rp-meta"><span class="insignia ${g.compartida ? 'insignia-info' : ''}">${c.esc(origen)}</span>${n} sección${n === 1 ? '' : 'es'}</span>
+      </div>`);
+      const abrir = () => {
+        const pre = { ...(g.parametros || {}) };
+        delete pre.periodo;   // se propone el periodo actual: la plantilla se repite cambiando solo el periodo
+        elegirPlantilla('personalizado', false, pre, g.id);
+      };
+      tarjeta.addEventListener('click', abrir);
+      tarjeta.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } });
+      if (g.propia) {
+        const quitar = c.crear(`<button type="button" class="boton boton-icono rp-eliminar" aria-label="Eliminar la plantilla «${c.esc(g.nombre)}»" title="Eliminar la plantilla">${c.iconoFi('trash')}</button>`);
+        quitar.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const ok = await window.util.confirmar(`¿Eliminar la plantilla «${g.nombre}»? Los reportes ya generados no se borran.`,
+            { aceptar: 'Eliminar', peligro: true });
+          if (!ok) return;
+          try {
+            await SOME.api.del(`/api/reportes/mis-plantillas/${g.id}`);
+            c.toast('Plantilla eliminada.', 'exito');
+            cargarMisPlantillas();
+          } catch (err) {
+            c.toast(err && err.message ? err.message : 'No se pudo eliminar la plantilla.', 'error');
+          }
+        });
+        tarjeta.appendChild(quitar);
+      }
+      zona.appendChild(tarjeta);
+    });
+  }
+
+  function elegirPlantilla(id, esInicial, prellenado, guardadaId) {
     const c = C();
     const pl = (estado.plantillas || []).find((x) => x.id === id);
     if (!pl) return;
     estado.plantilla = pl;
     estado.nodos.plantillas.querySelectorAll('.rp-plantilla').forEach((t) => {
-      const activa = t.dataset.id === id;
+      const activa = t.dataset.id === id && guardadaId == null;
       t.classList.toggle('activa', activa);
       t.setAttribute('aria-pressed', activa ? 'true' : 'false');
     });
-    construirFormulario(pl, esInicial ? estado.prellenado : {});
+    estado.nodos.misPlantillas.querySelectorAll('.rp-plantilla').forEach((t) => {
+      t.classList.toggle('activa', guardadaId != null && t.dataset.guardada === String(guardadaId));
+    });
+    construirFormulario(pl, prellenado || (esInicial ? estado.prellenado : {}));
     if (!esInicial) estado.nodos.formularioCaja.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
@@ -126,6 +199,149 @@
     return null;
   }
 
+  // Editor del parámetro «secciones» del reporte personalizado (RF-09.3)
+  function editorSecciones(pl, param, inicial, id) {
+    const c = C();
+    const tipos = pl.tipos_seccion || [];
+    const maximo = pl.maximo_secciones || 12;
+    const cat = c.catalogo();
+    const fuentes = (cat.fuentes || []).filter((f) => f.habilitada !== false);
+    const variablesDe = (fid) => {
+      const f = c.fuente(fid);
+      return f ? (f.variables || []).filter((v) => v.habilitada !== false && !v.es_vector) : [];
+    };
+    let secciones = (Array.isArray(inicial) ? inicial : []).map((s) => ({ ...s }));
+    const campo = c.crear(`<fieldset class="campo" style="border:0;padding:0;margin:0 0 10px">
+      <legend style="font-weight:600;margin-bottom:4px">${c.esc(param.etiqueta)}</legend>
+      <p class="texto-2" style="font-size:12px;margin:0 0 8px">Cada sección usa el periodo y el periodo de referencia del reporte. Ordénelas con las flechas.</p>
+      <div class="rp-secciones"></div>
+      <div class="fila" style="gap:8px;margin-top:8px;align-items:flex-end">
+        <div class="campo" style="margin:0;flex:1"><label for="${id}-nueva">Agregar sección</label><select id="${id}-nueva"></select></div>
+        <button type="button" class="boton boton-secundario" data-accion="agregar">${c.iconoFi('plus-small')} Agregar</button>
+      </div></fieldset>`);
+    const lista = campo.querySelector('.rp-secciones');
+    const selNueva = campo.querySelector(`#${id}-nueva`);
+    const botonAgregar = campo.querySelector('[data-accion="agregar"]');
+    tipos.forEach((t) => selNueva.appendChild(new Option(t.nombre, t.id)));
+
+    const nuevaSeccion = (tipo) => {
+      if (tipo === 'texto') return { tipo, titulo: '', texto: '' };
+      if (tipo === 'perfil') return { tipo, titulo: '', variable: 'thetao', lat: -2, lon: -85 };
+      const f = fuentes[0] || {};
+      const v = variablesDe(f.id)[0] || {};
+      const s = { tipo, titulo: '', fuente: f.id, variable: v.id, recorte: 'nino12' };
+      if (tipo === 'mapa') s.modo = 'valor';
+      return s;
+    };
+
+    const selectRecorte = (idc, valor) => {
+      const sel = c.crear(`<select id="${idc}"></select>`);
+      const nombreTipo = { area: 'Áreas', region_nino: 'Regiones Niño', provincia: 'Provincias', cuenca: 'Cuencas' };
+      const grupos = {};
+      (cat.recortes || []).forEach((r) => { (grupos[r.tipo] = grupos[r.tipo] || []).push(r); });
+      Object.keys(grupos).forEach((t) => {
+        const og = document.createElement('optgroup'); og.label = nombreTipo[t] || t;
+        grupos[t].forEach((r) => og.appendChild(new Option(r.nombre, r.id)));
+        sel.appendChild(og);
+      });
+      if (valor && [...sel.options].some((o) => o.value === valor)) sel.value = valor;
+      return sel;
+    };
+
+    function tarjeta(s, i) {
+      const tipo = tipos.find((t) => t.id === s.tipo) || { nombre: s.tipo, campos: [], descripcion: '' };
+      const pre = `${id}-s${i}`;
+      const nodo = c.crear(`<div class="rp-seccion">
+        <div class="rp-seccion-cabecera"><span><strong>${i + 1}. ${c.esc(tipo.nombre)}</strong>
+          <span class="texto-2" style="font-size:12px"> · ${c.esc(tipo.descripcion || '')}</span></span>
+          <span class="rp-seccion-acciones">
+            <button type="button" class="boton boton-icono" data-mover="-1" aria-label="Subir la sección ${i + 1}" title="Subir" ${i === 0 ? 'disabled' : ''}>${c.iconoFi('arrow-small-up')}</button>
+            <button type="button" class="boton boton-icono" data-mover="1" aria-label="Bajar la sección ${i + 1}" title="Bajar" ${i === secciones.length - 1 ? 'disabled' : ''}>${c.iconoFi('arrow-small-down')}</button>
+            <button type="button" class="boton boton-icono" data-quitar aria-label="Quitar la sección ${i + 1}" title="Quitar">${c.iconoFi('trash')}</button>
+          </span></div>
+        <div class="rp-seccion-campos"></div></div>`);
+      const zona = nodo.querySelector('.rp-seccion-campos');
+      const agregarCampo = (etiqueta, control, ancho) => {
+        const envoltura = c.crear(`<div class="campo${ancho ? ' rp-ancho' : ''}"><label for="${control.id}">${c.esc(etiqueta)}</label></div>`);
+        envoltura.appendChild(control);
+        zona.appendChild(envoltura);
+      };
+      const titulo = c.crear(`<input id="${pre}-titulo" type="text" maxlength="120" placeholder="Si lo deja vacío, se usa uno automático">`);
+      titulo.value = s.titulo || '';
+      titulo.addEventListener('input', () => { s.titulo = titulo.value; });
+      agregarCampo('Título de la sección', titulo, true);
+
+      if (s.tipo === 'texto') {
+        const texto = c.crear(`<textarea id="${pre}-texto" maxlength="4000" placeholder="Separe los párrafos con una línea en blanco"></textarea>`);
+        texto.value = s.texto || '';
+        texto.addEventListener('input', () => { s.texto = texto.value; });
+        agregarCampo('Texto', texto, true);
+      } else if (s.tipo === 'perfil') {
+        const variable = c.crear(`<select id="${pre}-variable"><option value="thetao">Temperatura del agua</option><option value="so">Salinidad</option></select>`);
+        variable.value = s.variable || 'thetao';
+        variable.addEventListener('change', () => { s.variable = variable.value; });
+        agregarCampo('Variable (Copernicus Marine)', variable, true);
+        const lat = c.crear(`<input id="${pre}-lat" type="number" step="0.01" min="-90" max="90">`);
+        const lon = c.crear(`<input id="${pre}-lon" type="number" step="0.01" min="-180" max="180">`);
+        lat.value = s.lat != null ? s.lat : -2; lon.value = s.lon != null ? s.lon : -85;
+        lat.addEventListener('input', () => { s.lat = lat.value === '' ? null : Number(lat.value); });
+        lon.addEventListener('input', () => { s.lon = lon.value === '' ? null : Number(lon.value); });
+        agregarCampo('Latitud (°, negativa al sur)', lat);
+        agregarCampo('Longitud (°, negativa al oeste)', lon);
+      } else {
+        const fuente = c.crear(`<select id="${pre}-fuente"></select>`);
+        fuentes.forEach((f) => fuente.appendChild(new Option(f.nombre, f.id)));
+        if ([...fuente.options].some((o) => o.value === s.fuente)) fuente.value = s.fuente; else s.fuente = fuente.value;
+        const variable = c.crear(`<select id="${pre}-variable"></select>`);
+        const llenarVariables = () => {
+          variable.innerHTML = '';
+          variablesDe(fuente.value).forEach((v) => variable.appendChild(new Option(`${v.nombre} (${v.unidad})`, v.id)));
+          if ([...variable.options].some((o) => o.value === s.variable)) variable.value = s.variable; else s.variable = variable.value;
+        };
+        llenarVariables();
+        fuente.addEventListener('change', () => { s.fuente = fuente.value; llenarVariables(); });
+        variable.addEventListener('change', () => { s.variable = variable.value; });
+        agregarCampo('Fuente', fuente);
+        agregarCampo('Variable', variable);
+        const recorte = selectRecorte(`${pre}-recorte`, s.recorte);
+        s.recorte = recorte.value;
+        recorte.addEventListener('change', () => { s.recorte = recorte.value; });
+        agregarCampo('Área (recorte)', recorte, s.tipo !== 'mapa');
+        if (s.tipo === 'mapa') {
+          const modo = c.crear(`<select id="${pre}-modo"><option value="valor">Promedio del periodo</option><option value="anomalia">Anomalía</option></select>`);
+          modo.value = s.modo === 'anomalia' ? 'anomalia' : 'valor';
+          modo.addEventListener('change', () => { s.modo = modo.value; });
+          agregarCampo('Mostrar', modo);
+        }
+      }
+      nodo.querySelectorAll('[data-mover]').forEach((b) => b.addEventListener('click', () => {
+        const j = i + Number(b.dataset.mover);
+        if (j < 0 || j >= secciones.length) return;
+        [secciones[i], secciones[j]] = [secciones[j], secciones[i]];
+        dibujar();
+      }));
+      nodo.querySelector('[data-quitar]').addEventListener('click', () => { secciones.splice(i, 1); dibujar(); });
+      return nodo;
+    }
+
+    function dibujar() {
+      lista.innerHTML = '';
+      if (!secciones.length) lista.appendChild(c.crear('<p class="texto-2" style="font-size:13px;margin:0">Agregue al menos una sección.</p>'));
+      secciones.forEach((s, i) => lista.appendChild(tarjeta(s, i)));
+      botonAgregar.disabled = secciones.length >= maximo;
+      botonAgregar.title = botonAgregar.disabled ? `Máximo ${maximo} secciones` : '';
+    }
+    botonAgregar.addEventListener('click', () => {
+      if (secciones.length >= maximo) return;
+      secciones.push(nuevaSeccion(selNueva.value));
+      dibujar();
+      const ultima = lista.lastElementChild;
+      if (ultima) ultima.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    dibujar();
+    return { campo, leer: () => secciones.map((s) => ({ ...s })) };
+  }
+
   function periodoDesde(valor) {
     const c = C();
     if (!valor) return null;
@@ -145,6 +361,7 @@
       <div class="rp-campos"></div>
       <div class="fila" style="justify-content:flex-end;margin-top:12px;align-items:center;gap:10px">
         <span class="texto-2" style="font-size:12px;flex:1">El PDF se genera en segundo plano; puede seguir trabajando mientras tanto.</span>
+        ${pl.id === 'personalizado' ? '<button type="button" class="boton boton-secundario" data-accion="guardar-plantilla">Guardar como plantilla</button>' : ''}
         <button type="submit" class="boton boton-primario">Generar</button>
       </div>
     </form>`);
@@ -228,6 +445,10 @@
           if (param.id === 'profundidad' && val !== '' && Number.isFinite(Number(val))) return Number(val);
           return val === '' ? null : val;
         };
+      } else if (param.tipo === 'secciones') {
+        const editor = editorSecciones(pl, param, inicial, id);
+        campo = editor.campo;
+        controles[param.id] = editor.leer;
       } else if (param.tipo === 'booleano') {
         const marcado = inicial === true || inicial === 'true' || inicial === '1' || inicial === 'si' || inicial === 'sí';
         campo = c.crear(`<div class="campo"><label for="${id}" style="display:flex;align-items:center;gap:8px"><input id="${id}" type="checkbox" ${marcado ? 'checked' : ''}> ${c.esc(param.etiqueta)}</label></div>`);
@@ -242,22 +463,70 @@
     if (controles.__variable_llenar) controles.__variable_llenar();
 
     form.addEventListener('submit', (e) => { e.preventDefault(); enviar(pl, controles, form); });
+    const guardar = form.querySelector('[data-accion="guardar-plantilla"]');
+    if (guardar) guardar.addEventListener('click', () => guardarComoPlantilla(pl, controles));
     caja.appendChild(form);
   }
 
-  async function enviar(pl, controles, form) {
+  // Lee los parámetros del formulario; null (con un aviso) si falta alguno obligatorio
+  function leerParametros(pl, controles) {
     const c = C();
     const parametros = {};
     for (const param of pl.parametros || []) {
       const leer = controles[param.id];
       if (!leer) continue;
       const val = leer();
-      if ((val == null || val === '') && param.tipo !== 'booleano' && param.tipo !== 'texto') {
-        c.toast(`Complete el campo «${param.etiqueta}».`, 'aviso');
-        return;
+      const vacio = val == null || val === '' || (Array.isArray(val) && !val.length);
+      if (vacio && param.tipo !== 'booleano' && param.tipo !== 'texto') {
+        c.toast(param.tipo === 'secciones' ? 'Agregue al menos una sección al reporte.' : `Complete el campo «${param.etiqueta}».`, 'aviso');
+        return null;
       }
       parametros[param.id] = val;
     }
+    return parametros;
+  }
+
+  function guardarComoPlantilla(pl, controles) {
+    const c = C();
+    const parametros = leerParametros(pl, controles);
+    if (!parametros) return;
+    const contenido = c.crear(`<div>
+      <div class="campo"><label for="rp-gp-nombre">Nombre de la plantilla</label><input id="rp-gp-nombre" type="text" maxlength="120"></div>
+      <div class="campo"><label for="rp-gp-descripcion">Descripción (opcional)</label><input id="rp-gp-descripcion" type="text" maxlength="400" placeholder="Para qué sirve o a quién va dirigido"></div>
+      <div class="campo"><label for="rp-gp-compartida" style="display:flex;align-items:center;gap:8px"><input id="rp-gp-compartida" type="checkbox"> Compartir con mi departamento</label></div>
+      <p class="texto-2" style="font-size:12px;margin:0">Se guardan el título, el destinatario y las secciones. Al abrirla, solo hay que elegir el periodo.</p>
+    </div>`);
+    contenido.querySelector('#rp-gp-nombre').value = parametros.titulo || '';
+    c.abrirModal({
+      titulo: 'Guardar como plantilla',
+      contenido,
+      acciones: [
+        { texto: 'Cancelar', clase: 'boton-secundario' },
+        {
+          texto: 'Guardar', clase: 'boton-primario',
+          accion: async () => {
+            const nombre = contenido.querySelector('#rp-gp-nombre').value.trim();
+            if (!nombre) { c.toast('Escriba un nombre para la plantilla.', 'aviso'); return false; }
+            await SOME.api.post('/api/reportes/mis-plantillas', {
+              nombre,
+              descripcion: contenido.querySelector('#rp-gp-descripcion').value.trim(),
+              compartida: contenido.querySelector('#rp-gp-compartida').checked,
+              parametros,
+            });
+            c.toast(`Plantilla «${nombre}» guardada.`, 'exito');
+            cargarMisPlantillas();
+            return true;
+          },
+        },
+      ],
+    });
+    setTimeout(() => { const n = document.getElementById('rp-gp-nombre'); if (n) n.focus(); }, 50);
+  }
+
+  async function enviar(pl, controles, form) {
+    const c = C();
+    const parametros = leerParametros(pl, controles);
+    if (!parametros) return;
     const boton = form.querySelector('button[type="submit"]');
     boton.disabled = true;
     boton.textContent = 'Enviando…';
@@ -423,6 +692,10 @@
           </div>
           <div class="rp-plantillas"></div>
         </div>
+        <div class="rp-mis-plantillas-caja" hidden>
+          <h2 style="margin:0 0 8px;font-size:16px">Mis plantillas</h2>
+          <div class="rp-plantillas rp-mis-plantillas"></div>
+        </div>
         <div class="rp-cuerpo">
           <div class="tarjeta rp-formulario-caja"><div class="esqueleto" style="min-height:120px"></div></div>
           <div class="tarjeta rp-trabajos-caja">
@@ -442,9 +715,11 @@
 
       estado = {
         plantillas: [], plantilla: null, plantillaInicial: p.plantilla || null, prellenado: prellenadoDesdeHash(p),
-        trabajos: null, temporizador: null, sondeando: false,
+        trabajos: null, temporizador: null, sondeando: false, guardadas: [],
         nodos: {
           plantillas: pagina.querySelector('.rp-plantillas'),
+          misPlantillasCaja: pagina.querySelector('.rp-mis-plantillas-caja'),
+          misPlantillas: pagina.querySelector('.rp-mis-plantillas'),
           formularioCaja: pagina.querySelector('.rp-formulario-caja'),
           trabajosCaja: pagina.querySelector('.rp-trabajos-caja'),
           trabajos: pagina.querySelector('.rp-trabajos'),

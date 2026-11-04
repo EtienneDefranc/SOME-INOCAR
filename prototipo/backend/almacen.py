@@ -30,8 +30,9 @@ from . import configuracion as cfg
 # ---------------------------------------------------------------------------
 INICIO_SERVIDOR = datetime.now()
 
-COLECCIONES = ("usuarios", "paneles", "vistas", "auditoria", "trabajos", "catalogo", "contadores")
-_LISTAS = {"usuarios", "vistas", "auditoria", "trabajos"}
+COLECCIONES = ("usuarios", "paneles", "vistas", "auditoria", "trabajos", "catalogo", "contadores",
+               "plantillas_reporte")
+_LISTAS = {"usuarios", "vistas", "auditoria", "trabajos", "plantillas_reporte"}
 MAXIMO_AUDITORIA = 5000
 
 _BLOQUEO = threading.RLock()
@@ -211,6 +212,8 @@ def eliminar_usuario(usuario_id) -> bool:
             guardar("paneles", paneles)
         vistas = [v for v in cargar("vistas") if str(v.get("propietario_id")) != str(usuario_id)]
         guardar("vistas", vistas)
+        plantillas = [p for p in cargar("plantillas_reporte") if str(p.get("propietario_id")) != str(usuario_id)]
+        guardar("plantillas_reporte", plantillas)
         return True
 
 
@@ -276,6 +279,71 @@ def eliminar_panel(usuario_id) -> None:
         if str(usuario_id) in paneles:
             del paneles[str(usuario_id)]
             guardar("paneles", paneles)
+
+
+# ---------------------------------------------------------------------------
+# Plantillas de reporte personalizado (RF-09.3)
+# ---------------------------------------------------------------------------
+def listar_plantillas_reporte(usuario: dict) -> list[dict]:
+    """Las plantillas propias del usuario y las que otros compartieron con su departamento."""
+    propias, compartidas = [], []
+    for p in cargar("plantillas_reporte"):
+        if str(p.get("propietario_id")) == str(usuario["id"]):
+            propias.append(p)
+        elif p.get("compartida") and p.get("departamento") == usuario.get("departamento"):
+            compartidas.append(p)
+    return propias + compartidas
+
+
+def plantilla_reporte(plantilla_id) -> dict | None:
+    for p in cargar("plantillas_reporte"):
+        if str(p["id"]) == str(plantilla_id):
+            return p
+    return None
+
+
+def crear_plantilla_reporte(propietario: dict, datos: dict) -> dict:
+    with _BLOQUEO:
+        plantillas = cargar("plantillas_reporte")
+        nueva = {
+            "id": siguiente_id("plantillas_reporte"),
+            "nombre": str(datos.get("nombre") or "").strip() or "Plantilla sin nombre",
+            "descripcion": str(datos.get("descripcion") or ""),
+            "parametros": datos.get("parametros") or {},
+            "compartida": bool(datos.get("compartida", False)),
+            "departamento": propietario.get("departamento", ""),
+            "propietario_id": propietario["id"],
+            "propietario_usuario": propietario["usuario"],
+            "propietario_nombre": propietario.get("nombre", propietario["usuario"]),
+            "creada": ahora_iso(),
+        }
+        plantillas.append(nueva)
+        guardar("plantillas_reporte", plantillas)
+        return nueva
+
+
+def eliminar_plantilla_reporte(plantilla_id) -> bool:
+    with _BLOQUEO:
+        plantillas = cargar("plantillas_reporte")
+        restantes = [p for p in plantillas if str(p["id"]) != str(plantilla_id)]
+        if len(restantes) == len(plantillas):
+            return False
+        guardar("plantillas_reporte", restantes)
+        return True
+
+
+def plantilla_reporte_publica(p: dict, usuario: dict) -> dict:
+    return {
+        "id": p["id"],
+        "nombre": p["nombre"],
+        "descripcion": p.get("descripcion", ""),
+        "parametros": p.get("parametros") or {},
+        "compartida": bool(p.get("compartida")),
+        "departamento": p.get("departamento", ""),
+        "propia": str(p.get("propietario_id")) == str(usuario["id"]),
+        "propietario": {"usuario": p.get("propietario_usuario"), "nombre": p.get("propietario_nombre")},
+        "creada": p.get("creada"),
+    }
 
 
 # ---------------------------------------------------------------------------

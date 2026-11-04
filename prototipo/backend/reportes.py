@@ -1,7 +1,9 @@
 """Plantillas de reporte y generación de PDF del SOME (RF-09) con reportlab.
 
-Tres plantillas (sección 7.5): `boletin_erfen`, `informe_variable` y
-`comparativo`. `generar(plantilla, parametros, usuario, trabajo_id, progreso)`
+Cuatro plantillas (sección 7.5): `boletin_erfen`, `informe_variable`,
+`comparativo` y `personalizado` (RF-09.3: el usuario elige el título, el
+destinatario y las secciones; sirve para cualquier tipo de reporte, no solo el
+del CN-ERFEN). `generar(plantilla, parametros, usuario, trabajo_id, progreso)`
 consulta el motor, dibuja las figuras con `graficos.py` y compone un PDF A4
 vertical con carátula, encabezado y pie en cada página («SOME · <insignia de
 procedencia>» y número de página), figuras con su crédito y una sección final
@@ -29,6 +31,7 @@ demostración de la cola sea visible.
 from __future__ import annotations
 
 import io
+import json
 import logging
 import re
 import time
@@ -66,6 +69,32 @@ COLOR_FONDO = colors.HexColor("#F3F6F9")
 
 ANCHO_FIGURA = 16.5 * cm
 PUNTO_PERFIL = {"lat": -2.0, "lon": -85.0}   # 85° O, 2° S
+
+# Reporte personalizado (RF-09.3): tipos de sección y los campos que pide cada uno en el formulario
+TIPOS_SECCION = [
+    {"id": "texto", "nombre": "Texto", "campos": ["titulo", "texto"],
+     "descripcion": "Párrafos propios: introducción, análisis o conclusiones."},
+    {"id": "mapa", "nombre": "Mapa", "campos": ["titulo", "fuente", "variable", "recorte", "modo"],
+     "descripcion": "Promedio del periodo o su anomalía, con las estadísticas del área."},
+    {"id": "serie", "nombre": "Serie de tiempo", "campos": ["titulo", "fuente", "variable", "recorte"],
+     "descripcion": "Promedio de área con climatología, anomalías y resumen en lenguaje sencillo."},
+    {"id": "perfil", "nombre": "Perfil vertical", "campos": ["titulo", "variable_perfil", "lat", "lon"],
+     "descripcion": "Temperatura o salinidad de 0 a 100 m (Copernicus Marine) en el último día del periodo."},
+    {"id": "comparacion", "nombre": "Comparación con el año anterior",
+     "campos": ["titulo", "fuente", "variable", "recorte"],
+     "descripcion": "Series del periodo y del mismo periodo un año antes, con sus diferencias."},
+    {"id": "tabla", "nombre": "Tabla de estadísticas", "campos": ["titulo", "fuente", "variable", "recorte"],
+     "descripcion": "Media, extremos, último dato, anomalía y tendencia del promedio de área."},
+]
+_NOMBRE_SECCION = {t["id"]: t["nombre"] for t in TIPOS_SECCION}
+MAXIMO_SECCIONES = 12
+SECCIONES_POR_DEFECTO = [
+    {"tipo": "texto", "titulo": "Introducción",
+     "texto": "Este informe resume las condiciones del periodo en la región indicada."},
+    {"tipo": "mapa", "titulo": "", "fuente": "noaa_oisst", "variable": "sst", "recorte": "nino12", "modo": "anomalia"},
+    {"tipo": "serie", "titulo": "", "fuente": "noaa_oisst", "variable": "sst", "recorte": "nino12"},
+    {"tipo": "tabla", "titulo": "", "fuente": "chirps_v3", "variable": "precip", "recorte": "guayas"},
+]
 
 
 # ---------------------------------------------------------------------------
@@ -158,6 +187,30 @@ def plantillas() -> list[dict]:
                 {"id": "periodo_b", "etiqueta": "Periodo B", "tipo": "periodo", "por_defecto": _periodo_ultimos(30)},
                 {"id": "autor", "etiqueta": "Autor o autora", "tipo": "texto", "por_defecto": ""},
             ],
+        },
+        {
+            "id": "personalizado",
+            "nombre": "Reporte personalizado",
+            "descripcion": "Para cualquier destinatario o uso: elija el título, el destinatario y las secciones "
+                           "(mapas, series, perfiles, comparaciones con el año anterior, tablas y textos) en el "
+                           "orden que quiera. Guárdelo como plantilla para repetirlo cambiando solo el periodo.",
+            "icono": "personalizado",
+            "parametros": [
+                {"id": "titulo", "etiqueta": "Título del reporte", "tipo": "texto",
+                 "por_defecto": "Informe mensual de condiciones oceanográficas"},
+                {"id": "destinatario", "etiqueta": "Destinatario (dirección, comité o persona)", "tipo": "texto",
+                 "por_defecto": ""},
+                {"id": "periodo", "etiqueta": "Periodo del reporte", "tipo": "periodo",
+                 "por_defecto": _periodo_ultimos(30)},
+                {"id": "periodo_referencia", "etiqueta": "Periodo de referencia", "tipo": "opcion",
+                 "opciones": [{"valor": p, "etiqueta": p} for p in cfg.PERIODOS_REFERENCIA],
+                 "por_defecto": cfg.PERIODO_REFERENCIA_POR_DEFECTO},
+                {"id": "secciones", "etiqueta": "Secciones del reporte", "tipo": "secciones",
+                 "por_defecto": SECCIONES_POR_DEFECTO},
+                {"id": "autor", "etiqueta": "Autor o autora", "tipo": "texto", "por_defecto": ""},
+            ],
+            "tipos_seccion": TIPOS_SECCION,
+            "maximo_secciones": MAXIMO_SECCIONES,
         },
     ]
 
@@ -1464,17 +1517,221 @@ def _comparativo(parametros: dict, usuario: dict, progreso, generado: datetime |
 
 
 # ---------------------------------------------------------------------------
+# Plantilla 4: reporte personalizado (RF-09.3)
+# ---------------------------------------------------------------------------
+def _leer_secciones(parametros: dict) -> list[dict]:
+    """Valida y normaliza las secciones del reporte personalizado. Lanza `motor.ErrorConsulta` (400/404/422)
+    con un mensaje que nombra la sección, para que el usuario sepa qué corregir."""
+    secciones = parametros.get("secciones")
+    if isinstance(secciones, str):
+        try:
+            secciones = json.loads(secciones)
+        except ValueError:
+            raise motor.ErrorConsulta("«secciones» debe ser una lista de secciones.", 400)
+    if not isinstance(secciones, list) or not secciones:
+        raise motor.ErrorConsulta("El reporte personalizado necesita al menos una sección.", 422)
+    if len(secciones) > MAXIMO_SECCIONES:
+        raise motor.ErrorConsulta(f"El reporte admite como máximo {MAXIMO_SECCIONES} secciones "
+                                  f"(tiene {len(secciones)}).", 422)
+    salida = []
+    for i, s in enumerate(secciones, 1):
+        if not isinstance(s, dict) or s.get("tipo") not in _NOMBRE_SECCION:
+            tipos = ", ".join(_NOMBRE_SECCION[t].lower() for t in _NOMBRE_SECCION)
+            raise motor.ErrorConsulta(f"La sección {i} no tiene un tipo válido ({tipos}).", 422)
+        tipo = s["tipo"]
+        n = {"tipo": tipo, "titulo": str(s.get("titulo") or "").strip()[:120]}
+        if tipo == "texto":
+            n["texto"] = str(s.get("texto") or "").strip()[:4000]
+            if not n["texto"]:
+                raise motor.ErrorConsulta(f"La sección {i} (texto) está vacía: escriba su contenido o quítela.", 422)
+        elif tipo == "perfil":
+            n["variable"] = str(s.get("variable") or "thetao")
+            if n["variable"] not in ("thetao", "so"):
+                raise motor.ErrorConsulta(f"La sección {i} (perfil) admite temperatura (thetao) o salinidad (so).", 422)
+            try:
+                n["lat"], n["lon"] = float(s.get("lat")), float(s.get("lon"))
+            except (TypeError, ValueError):
+                raise motor.ErrorConsulta(f"La sección {i} (perfil) necesita la latitud y la longitud del punto.", 422)
+            if not (-90 <= n["lat"] <= 90 and -180 <= n["lon"] <= 180):
+                raise motor.ErrorConsulta(f"La sección {i} (perfil) tiene coordenadas fuera de rango.", 422)
+        else:
+            n["fuente"] = str(s.get("fuente") or "noaa_oisst")
+            n["variable"] = str(s.get("variable") or "sst")
+            _, var = motor._fuente_y_variable(n["fuente"], n["variable"])
+            if var.es_vector:
+                raise motor.ErrorConsulta(f"La sección {i}: los vectores de corriente no se pueden incluir en un "
+                                          "reporte; elija una variable escalar.", 422)
+            n["recorte"] = _leer_recorte({"recorte": s.get("recorte")}, "nino12")["id"]
+            if tipo == "mapa":
+                n["modo"] = "anomalia" if s.get("modo") == "anomalia" else "valor"
+        salida.append(n)
+    return salida
+
+
+def _seccion_personalizada(doc: _Documento, i: int, s: dict, periodo: dict, periodo_ref: str,
+                           figuras: int) -> int:
+    """Agrega al documento la sección `i` y devuelve el número de figuras acumulado."""
+    tipo = s["tipo"]
+    if tipo == "texto":
+        doc.seccion(f"{i}. {s['titulo'] or 'Texto'}")
+        for parrafo in [p.strip() for p in re.split(r"\n\s*\n", s["texto"]) if p.strip()]:
+            doc.parrafo(" ".join(parrafo.split()))
+        return figuras
+
+    if tipo == "perfil":
+        conector = catalogo.conector("copernicus_phy")
+        fecha = min(date.fromisoformat(periodo["fin"]), conector.fecha_corte)
+        r = motor.consulta_perfil({"fuente": "copernicus_phy", "variable": s["variable"], "lat": s["lat"],
+                                   "lon": s["lon"], "fecha": fecha.isoformat()})
+        doc.seccion(f"{i}. {s['titulo'] or 'Perfil vertical: ' + r['nombre_variable']}")
+        doc.frases(r["texto"])
+        doc.avisar(r)
+        png = graficos.figura_perfil(r["profundidades"], r["valores"],
+                                     f"{r['nombre_variable']} en {cfg.fmt_coordenada(r['lat'], r['lon'])}",
+                                     r["unidad"], r["fuente"]["credito"], r["capa_mezcla_m"],
+                                     subtitulo=f"{cfg.fmt_fecha(r['fecha'])} · Copernicus Marine",
+                                     decimales=r["decimales"], insignia=r["insignia"])
+        figuras += 1
+        doc.figura(png, f"Figura {figuras}. Perfil vertical del {cfg.fmt_fecha(r['fecha'])}. "
+                        f"{doc.pie_credito(r['fuente'])}", ancho=10 * cm)
+        doc.registrar_fuente(r["fuente"], r["metodo"])
+        return figuras
+
+    fuente_id, variable_id = s["fuente"], s["variable"]
+    recorte = catalogo.recorte(s["recorte"])
+    conector, var = motor._fuente_y_variable(fuente_id, variable_id)
+    p = _leer_periodo({"periodo": periodo}, "periodo", periodo, fuente_id)
+    base = {"fuente": fuente_id, "variable": variable_id, "area": _area(recorte)}
+    if var.tiene_profundidad:
+        base["profundidad"] = 0
+    agregacion = "diaria" if _dias(p) <= 400 else "semanal"
+    u, d = var.unidad, var.decimales
+
+    if tipo == "mapa":
+        anomalia = s["modo"] == "anomalia"
+        r = motor.consulta_mapa(dict(base, periodo=p, periodo_referencia=periodo_ref,
+                                     modo="anomalia" if anomalia else "valor"))
+        doc.seccion(f"{i}. {s['titulo'] or ('Anomalía de ' if anomalia else 'Mapa de ') + var.nombre.split('(')[0].strip().lower()}")
+        doc.avisar(r)
+        png = graficos.figura_mapa(r["lats"], r["lons"], r["valores"], r["titulo"], r["subtitulo"], r["unidad"],
+                                   r["paleta"], r["vmin"], r["vmax"], r["fuente"]["credito"],
+                                   es_tierra=fuente_id == "chirps_v3", insignia=r["insignia"])
+        figuras += 1
+        doc.figura(png, f"Figura {figuras}. {r['titulo']}, {r['subtitulo']}. {doc.pie_credito(r['fuente'])}")
+        doc.tabla(["Campo", "Media", "Mínimo", "Máximo", "Celdas válidas"],
+                  [_fila_estadisticas("Anomalía" if anomalia else "Promedio del periodo", r["estadisticas"],
+                                      r["unidad"], d, anomalia=anomalia)],
+                  [5.5 * cm, 2.8 * cm, 2.8 * cm, 2.8 * cm, 2.6 * cm])
+        doc.registrar_fuente(r["fuente"], r["metodo"])
+        return figuras
+
+    if tipo in ("serie", "tabla"):
+        r = motor.consulta_serie(dict(base, periodo=p, periodo_referencia=periodo_ref, agregacion=agregacion))
+        res = r["resumen"]
+        referencia = _periodo_ref(r, periodo_ref)
+        nombre = var.nombre.split("(")[0].strip()
+        if tipo == "serie":
+            doc.seccion(f"{i}. {s['titulo'] or 'Serie de tiempo: ' + nombre.lower()}")
+            doc.frases(res["texto"])
+            doc.avisar(r)
+            png = graficos.figura_serie(r["fechas"], r["valores"], f"{var.nombre} · «{recorte['nombre']}»",
+                                        r["unidad"], r["fuente"]["credito"], r["climatologia"], r["anomalias"],
+                                        etiqueta=nombre,
+                                        subtitulo=f"{_texto_periodo(r['periodo'])} · agregación {agregacion} · "
+                                                  f"referencia {referencia}", decimales=d, insignia=r["insignia"])
+            figuras += 1
+            doc.figura(png, f"Figura {figuras}. Serie {agregacion} del promedio de área con climatología y "
+                            f"anomalías. {doc.pie_credito(r['fuente'])}")
+        else:
+            doc.seccion(f"{i}. {s['titulo'] or 'Estadísticas: ' + nombre.lower()}")
+            doc.avisar(r)
+            ultimo = res.get("ultimo")
+            filas = [
+                ["Fuente y área", f"{conector.nombre_corto or conector.nombre} · «{recorte['nombre']}»"],
+                ["Periodo analizado", _texto_periodo(r["periodo"])],
+                ["Datos en la serie", cfg.fmt_num(res.get("n_datos"), 0)],
+                ["Media", cfg.fmt_valor(res.get("media"), u, d)],
+                ["Mínimo", f"{cfg.fmt_valor(res['minimo']['valor'], u, d)} ({cfg.fmt_fecha(res['minimo']['fecha'])})"
+                 if res.get("minimo") else "—"],
+                ["Máximo", f"{cfg.fmt_valor(res['maximo']['valor'], u, d)} ({cfg.fmt_fecha(res['maximo']['fecha'])})"
+                 if res.get("maximo") else "—"],
+                ["Último dato", f"{cfg.fmt_valor(ultimo['valor'], u, d)} ({cfg.fmt_fecha(ultimo['fecha'])})"
+                 if ultimo else "—"],
+                ["Anomalía del último dato", cfg.fmt_anomalia(ultimo.get("anomalia"), u, d) if ultimo else "—"],
+                ["Tendencia", f"{cfg.fmt_anomalia(res.get('tendencia_por_anio'), u, d)} por año"
+                 if res.get("tendencia_por_anio") is not None else "no se calcula (requiere al menos 2 años de datos)"],
+                ["Periodo de referencia", referencia],
+            ]
+            doc.tabla(["Estadístico", "Valor"], filas, [6 * cm, 10.5 * cm])
+        doc.registrar_fuente(r["fuente"], r["metodo"])
+        return figuras
+
+    # Comparación del periodo del reporte con el mismo periodo un año antes
+    pa = _leer_periodo({"periodo": {"inicio": _hace_un_anio(date.fromisoformat(p["inicio"])).isoformat(),
+                                    "fin": _hace_un_anio(date.fromisoformat(p["fin"])).isoformat()}},
+                       "periodo", p, fuente_id)
+    comp = motor.consulta_comparar({"a": dict(base, periodo=pa, etiqueta=f"Año anterior ({_texto_periodo(pa)})"),
+                                    "b": dict(base, periodo=p, etiqueta=f"Periodo del reporte ({_texto_periodo(p)})"),
+                                    "agregacion": agregacion})
+    doc.seccion(f"{i}. {s['titulo'] or 'Comparación con el año anterior: ' + var.nombre.split('(')[0].strip().lower()}")
+    doc.frases(comp["texto"])
+    doc.avisar(comp)
+    png = graficos.figura_comparacion(comp["a"]["fechas"], comp["a"]["valores"], comp["a"]["etiqueta"],
+                                      comp["b"]["fechas"], comp["b"]["valores"], comp["b"]["etiqueta"],
+                                      f"{var.nombre} · «{recorte['nombre']}»", comp["unidad"],
+                                      comp["fuentes"][0]["credito"], subtitulo=f"Agregación {agregacion}",
+                                      alineacion=comp["alineacion"], decimales=d, insignia=comp["insignia"])
+    figuras += 1
+    doc.figura(png, f"Figura {figuras}. Series del promedio de área del periodo del reporte y del mismo periodo un "
+                    f"año antes. {doc.pie_credito(comp['fuentes'][0])}")
+    dif = comp["diferencia"]
+    doc.tabla(["Estadístico", "Valor"],
+              [["Diferencia media (año anterior − periodo del reporte)", cfg.fmt_anomalia(dif.get("media"), u, d)],
+               ["Error cuadrático medio (RMSE)", cfg.fmt_valor(dif.get("rmse"), u, d)],
+               ["Correlación de Pearson", cfg.fmt_num(dif.get("correlacion"), 2)
+                if dif.get("correlacion") is not None else "no calculable"],
+               ["Datos comparados", cfg.fmt_num(dif.get("n"), 0)]],
+              [8 * cm, 8.5 * cm])
+    doc.registrar_fuente(comp["fuentes"][0], comp["metodo"])
+    return figuras
+
+
+def _personalizado(parametros: dict, usuario: dict, progreso, generado: datetime | None = None) -> _Documento:
+    titulo = str(parametros.get("titulo") or "").strip() or "Reporte personalizado"
+    destinatario = str(parametros.get("destinatario") or "").strip()
+    periodo = _leer_periodo(parametros, "periodo", _periodo_ultimos(30))
+    periodo_ref = str(parametros.get("periodo_referencia") or cfg.PERIODO_REFERENCIA_POR_DEFECTO)
+    secciones = _leer_secciones(parametros)
+    autor = str(parametros.get("autor") or "").strip()
+    doc = _Documento(titulo, f"Destinatario: {destinatario}" if destinatario else "Reporte personalizado",
+                     _texto_periodo(periodo), autor, usuario, generado)
+    figuras = 0
+    for i, s in enumerate(secciones, 1):
+        _etapa(progreso, 5 + int(85 * (i - 1) / len(secciones)),
+               f"Sección {i} de {len(secciones)}: {_NOMBRE_SECCION[s['tipo']].lower()}…")
+        figuras = _seccion_personalizada(doc, i, s, periodo, periodo_ref, figuras)
+    _etapa(progreso, 92, "Componiendo PDF…")
+    doc.seccion_fuentes()
+    return doc
+
+
+# ---------------------------------------------------------------------------
 # Punto de entrada para trabajos.py
 # ---------------------------------------------------------------------------
 _GENERADORES = {
     "boletin_erfen": _boletin_erfen,
     "informe_variable": _informe_variable,
     "comparativo": _comparativo,
+    "personalizado": _personalizado,
 }
 
 
 def titulo_trabajo(plantilla_id: str, parametros: dict) -> str:
     """Título legible del trabajo en la cola."""
+    if plantilla_id == "personalizado":
+        titulo = str(parametros.get("titulo") or "").strip() or "Reporte personalizado"
+        destinatario = str(parametros.get("destinatario") or "").strip()
+        return f"Reporte personalizado — {titulo}" + (f" · para {destinatario}" if destinatario else "")
     p = plantilla(plantilla_id)
     nombre = p["nombre"] if p else plantilla_id
     detalles = []
@@ -1492,6 +1749,12 @@ def validar_parametros(plantilla_id: str, parametros: dict) -> None:
     p = parametros or {}
     if plantilla_id not in _GENERADORES:
         raise motor.ErrorConsulta(f"Plantilla desconocida: «{plantilla_id}».", 404)
+    if plantilla_id == "personalizado":
+        periodo = _leer_periodo(p, "periodo", _periodo_ultimos(30))
+        for s in _leer_secciones(p):   # cada sección se acota a la fecha de corte de su fuente
+            if s.get("fuente"):
+                _leer_periodo({"periodo": periodo}, "periodo", periodo, s["fuente"])
+        return
     _leer_recorte(p, "nino12")
     if plantilla_id == "boletin_erfen":
         _leer_periodo(p, "periodo", _periodo_ultimos(15), "noaa_oisst")

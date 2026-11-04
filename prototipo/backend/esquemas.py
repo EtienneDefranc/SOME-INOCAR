@@ -157,6 +157,13 @@ class PeticionReporte(_Modelo):
     parametros: dict[str, Any] = Field(default_factory=dict)
 
 
+class PeticionPlantillaReporte(_Modelo):
+    nombre: str = Field(min_length=1, max_length=120)
+    descripcion: str = Field(default="", max_length=400)
+    compartida: bool = False
+    parametros: dict[str, Any] = Field(default_factory=dict)
+
+
 class TrabajoCreado(BaseModel):
     trabajo_id: int
     estado: str

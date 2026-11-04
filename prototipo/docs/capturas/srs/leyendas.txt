@@ -18,6 +18,8 @@
 18-reportes.png | Plantillas y formulario del boletín CN-ERFEN (RF-09)
 19-reportes-progreso.png | Reporte en curso como trabajo en segundo plano (RF-09.1)
 20-reportes-listo.png | Reporte terminado, listo para descargar o ver (RF-09)
+20b-reporte-personalizado.png | Plantillas predefinidas, «Mis plantillas» y el reporte personalizado (RF-09.2, RF-09.3)
+20c-reporte-secciones.png | Secciones del reporte personalizado: se agregan, ordenan y quitan (RF-09.3)
 21-boletin-pdf.png | Primera página del boletín CN-ERFEN generado en PDF (RF-09, RF-12)
 22-vistas.png | Mis vistas: propias y compartidas en solo lectura (RF-16)
 23-fuentes.png | Estado de las fuentes de datos, con su fecha de corte e historial (RF-21)

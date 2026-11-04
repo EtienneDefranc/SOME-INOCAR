@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from .. import almacen, auth, reportes, trabajos
-from ..esquemas import PeticionReporte, TrabajoCreado
+from ..esquemas import PeticionPlantillaReporte, PeticionReporte, TrabajoCreado
 
 router = APIRouter(tags=["Reportes y trabajos"])
 
@@ -18,6 +18,40 @@ router = APIRouter(tags=["Reportes y trabajos"])
 def listar_plantillas(usuario: dict = Depends(auth.usuario_actual)):
     """Plantillas disponibles con sus parámetros."""
     return reportes.plantillas()
+
+
+@router.get("/reportes/mis-plantillas")
+def listar_mis_plantillas(usuario: dict = Depends(auth.usuario_actual)):
+    """Plantillas de reporte personalizado del usuario y las compartidas con su departamento (RF-09.3)."""
+    return [almacen.plantilla_reporte_publica(p, usuario) for p in almacen.listar_plantillas_reporte(usuario)]
+
+
+@router.post("/reportes/mis-plantillas", status_code=201)
+def guardar_mis_plantilla(peticion: PeticionPlantillaReporte, request: Request,
+                          usuario: dict = Depends(auth.usuario_actual)):
+    """Guarda las secciones y los parámetros de un reporte personalizado para volver a usarlos."""
+    parametros = dict(peticion.parametros or {})
+    reportes.validar_parametros("personalizado", parametros)
+    nueva = almacen.crear_plantilla_reporte(usuario, {"nombre": peticion.nombre, "descripcion": peticion.descripcion,
+                                                      "compartida": peticion.compartida, "parametros": parametros})
+    almacen.registrar_auditoria(usuario["usuario"], "plantilla_reporte_creada",
+                                f"«{nueva['nombre']}» (plantilla {nueva['id']}"
+                                f"{', compartida con su departamento' if nueva['compartida'] else ''})",
+                                auth.ip_de(request))
+    return almacen.plantilla_reporte_publica(nueva, usuario)
+
+
+@router.delete("/reportes/mis-plantillas/{plantilla_id}")
+def eliminar_mis_plantilla(plantilla_id: int, request: Request, usuario: dict = Depends(auth.usuario_actual)):
+    p = almacen.plantilla_reporte(plantilla_id)
+    if p is None:
+        raise HTTPException(status_code=404, detail=f"No existe la plantilla {plantilla_id}.")
+    if str(p.get("propietario_id")) != str(usuario["id"]) and usuario.get("rol") != "administrador":
+        raise HTTPException(status_code=403, detail="Solo quien creó la plantilla puede eliminarla.")
+    almacen.eliminar_plantilla_reporte(plantilla_id)
+    almacen.registrar_auditoria(usuario["usuario"], "plantilla_reporte_eliminada",
+                                f"«{p['nombre']}» (plantilla {plantilla_id})", auth.ip_de(request))
+    return {"eliminada": True}
 
 
 @router.post("/reportes", response_model=TrabajoCreado, status_code=202)
