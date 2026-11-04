@@ -16,6 +16,7 @@ Este repositorio reúne dos cosas: el prototipo demostrativo del sistema y las e
 |---|---|
 | `SOME-Especificacion-de-Requerimientos-v1.0.pdf` | Especificación de Requerimientos de Software (SRS) v1.0 |
 | `prototipo/` | Código del prototipo demostrativo, su especificación, los diseños de los conectores y las capturas de pantalla |
+| `prototipo/docs/SOME-Navegacion-del-Oceanografo.pdf` | Recorrido paso a paso de un oceanógrafo por el prototipo, con capturas anotadas |
 | `evidencias/` | Evidencias del levantamiento y de la metodología, ordenadas por técnica (ver `evidencias/README.md`) |
 
 ## Ejecutar el prototipo
