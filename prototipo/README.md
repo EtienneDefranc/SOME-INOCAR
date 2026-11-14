@@ -210,6 +210,21 @@ Con la caché vacía tarda **unos 20 minutos** (medido el 30/10/2026: 13 min 32 
 
 **Crédito y licencia.** «NOAA OISST v2.1 (Huang et al., 2020; doi:10.25921/RE9P-PT57), NOAA NCEI y CDR Program, vía NOAA PSL.», con «vía NOAA NCEI» o «vía NOAA PSL y NOAA NCEI» si los días salieron del respaldo. Licencia: datos abiertos de NOAA sin restricciones de uso (dominio público en EE. UU.); no se puede insinuar aval de NOAA, presentar datos modificados como originales de NOAA ni usar su emblema. Ver [CONDICIONES-USO-FUENTES.md](../CONDICIONES-USO-FUENTES.md), §4. Cita del conjunto de datos: Huang, B., C. Liu, V. F. Banzon, E. Freeman, G. Graham, W. Hankins, T. M. Smith y H.-M. Zhang (2020), *NOAA 0.25-degree Daily Optimum Interpolation Sea Surface Temperature (OISST), Version 2.1*, NOAA National Centers for Environmental Information, https://doi.org/10.25921/RE9P-PT57; artículo: Huang, B. et al. (2021), *J. Climate* 34(8), 2923–2939, https://doi.org/10.1175/JCLI-D-20-0166.1. La climatología 1991-2020 cita «Climatología 1991-2020 de NOAA PSL (OISST, doi:10.25921/RE9P-PT57).»; la 1981-2010 y la 1993-2022, «Climatología <periodo> calculada por el INOCAR con OISST (doi:10.25921/RE9P-PT57).».
 
+### 3.4 Demo en línea: Render (plan gratuito) con Supabase
+
+El archivo `render.yaml` de la raíz del repositorio despliega el prototipo en Render. El disco del plan gratuito se borra en cada reinicio (Render apaga el servicio tras unos 15 minutos sin visitas), así que `backend/espejo_bd.py` copia la carpeta `datos/` (usuarios, paneles, vistas, plantillas, trabajos, auditoría, reportes en PDF y las cachés de NOAA, Copernicus y CHIRPS) a una tabla de PostgreSQL en Supabase y la restaura al arrancar. Sin la variable `SOME_BD_URL` el prototipo funciona como siempre, solo con archivos.
+
+1. **Supabase:** cree un proyecto gratuito. En *Connect*, copie la cadena del **Session pooler** (puerto 5432; la conexión directa usa IPv6 y puede no funcionar desde Render) y reemplace `[YOUR-PASSWORD]` por la contraseña de la base. La tabla se crea sola en el esquema `some_prototipo`, que la API de datos de Supabase no expone.
+2. **Sembrar la base** desde el equipo que tiene la caché (una sola vez, desde `prototipo/`):
+   ```powershell
+   $env:SOME_BD_URL = "<cadena del Session pooler>"
+   python -m backend.espejo_bd subir
+   ```
+   Sube unos 50 MB. Sin este paso, el servidor arranca sin caché y debe descargar todo de las fuentes.
+3. **Render:** *New* → *Blueprint* → este repositorio. Render lee `render.yaml` y pide las variables: `SOME_BD_URL` (obligatoria), `SOME_CHIRPS_CONTACTO`, `COPERNICUSMARINE_SERVICE_USERNAME` y `COPERNICUSMARINE_SERVICE_PASSWORD` (opcionales).
+
+Límites del plan gratuito: la primera visita tras una pausa tarda alrededor de un minuto; hay unos 512 MB de memoria; cada arranque consulta una vez a NOAA PSL y restaura ~50 MB desde Supabase (cuenta para su cuota de transferencia mensual). Supabase pausa el proyecto tras una semana sin uso. Los usuarios de demostración y su contraseña son públicos: no guarde datos reales.
+
 ## 4. Usuarios de demostración
 
 Contraseña para todos: **`some2026`**. La pantalla de acceso tiene un botón de **ingreso directo por tipo de usuario** (oceanógrafo/a, analista, revisor, administrador): un clic inicia la sesión sin escribir credenciales. El formulario de usuario y contraseña sigue disponible debajo.

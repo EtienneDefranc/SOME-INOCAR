@@ -23,7 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import almacen, catalogo
 from . import configuracion as cfg
-from . import motor, reportes, trabajos
+from . import espejo_bd, motor, reportes, trabajos
 from .rutas import RUTAS
 
 # Sincronización de CHIRPS v3, Copernicus Marine y NOAA OISST (conectores reales). Importación tolerante:
@@ -246,6 +246,9 @@ def _anfitrion_y_puerto() -> str:
     return f"{valor('--host', str(cfg.HOST))}:{valor('--port', str(cfg.PUERTO))}"
 
 
+_ESPEJO = espejo_bd.Sincronizador()
+
+
 @asynccontextmanager
 async def ciclo_de_vida(aplicacion: FastAPI):
     primera_vez = almacen.inicializar()
@@ -268,6 +271,8 @@ async def ciclo_de_vida(aplicacion: FastAPI):
     _sincronizacion_chirps("iniciar_sincronizacion")
     _sincronizacion_copernicus("iniciar_sincronizacion")
     _sincronizacion_noaa("iniciar_sincronizacion")
+    # Espejo en PostgreSQL (Supabase) si SOME_BD_URL está definida: lo guardado sobrevive a los reinicios
+    _ESPEJO.iniciar()
     texto = catalogo.insignias_cabecera()["insignia_cabecera"]
     print(f"SOME {cfg.VERSION} listo en http://{_anfitrion_y_puerto()}/ — {texto}. "
           f"Fecha de corte: {cfg.fmt_fecha(catalogo.fecha_corte_sistema())}. Datos en {almacen.ruta_datos()}")
@@ -278,6 +283,7 @@ async def ciclo_de_vida(aplicacion: FastAPI):
     _sincronizacion_copernicus("detener_sincronizacion")
     _sincronizacion_chirps("detener_sincronizacion")
     trabajos.detener()
+    _ESPEJO.detener()
 
 
 app = FastAPI(

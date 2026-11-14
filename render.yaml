@@ -1,0 +1,28 @@
+# Render (plan gratuito): demo del prototipo SOME. Lo que se guarda (usuarios, vistas, paneles, reportes y la
+# caché de NOAA, Copernicus y CHIRPS) se copia a PostgreSQL (Supabase) con backend/espejo_bd.py, porque el
+# disco del plan gratuito se borra en cada reinicio. Instrucciones en prototipo/README.md, sección «Render».
+services:
+  - type: web
+    name: some-prototipo
+    runtime: python
+    plan: free
+    rootDir: prototipo
+    buildCommand: pip install -r requirements.txt -r requirements-copernicus.txt
+    startCommand: python -m backend.espejo_bd restaurar && python -m uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/salud
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.5"
+      - key: MPLBACKEND
+        value: Agg
+      # Cadena de conexión de Supabase («Session pooler», puerto 5432). Se escribe en el panel de Render.
+      - key: SOME_BD_URL
+        sync: false
+      # Contacto institucional para el User-Agent hacia el CHC (opcional).
+      - key: SOME_CHIRPS_CONTACTO
+        sync: false
+      # Cuenta de Copernicus Marine (opcional; sin ella, Copernicus sirve solo lo que hay en la caché).
+      - key: COPERNICUSMARINE_SERVICE_USERNAME
+        sync: false
+      - key: COPERNICUSMARINE_SERVICE_PASSWORD
+        sync: false
