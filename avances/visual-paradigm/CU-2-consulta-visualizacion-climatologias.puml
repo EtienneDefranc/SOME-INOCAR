@@ -1,0 +1,59 @@
+@startuml CU-2-consulta-visualizacion-climatologias
+title Casos de uso: consulta, visualización y climatologías
+left to right direction
+skinparam actorStyle default
+skinparam usecase {
+  BackgroundColor<<Fase 2>> #E6F4EA
+  BackgroundColor<<Fase 3>> #F1E9F7
+  BackgroundColor<<Por definir>> #FFF6E0
+}
+
+actor "Oceanógrafo" as oc
+actor "NOAA OISST v2.1" as no <<sistema>>
+actor "Copernicus Marine" as co <<sistema>>
+actor "CHIRPS v3" as ch <<sistema>>
+
+rectangle "SOME" {
+  usecase "CU-13\nConstruir una consulta" as CU13
+  usecase "CU-17\nVer el mapa con la barra de tiempo" as CU17
+  usecase "CU-20\nVer la serie de tiempo con su resumen" as CU20
+  usecase "CU-22\nVer el perfil vertical y la cortina" as CU22
+  usecase "CU-23\nConsultar los índices Niño" as CU23
+  usecase "CU-24\nComparar fuentes o periodos" as CU24
+  usecase "CU-25\nVer el mismo mes cada año" as CU25
+  usecase "CU-14\nValidar la consulta" as CU14
+  usecase "CU-15\nUsar un recorte o un área favorita" as CU15
+  usecase "CU-16\nPegar una lista de puntos" as CU16
+  usecase "CU-18\nMostrar vectores de corriente y de viento" as CU18
+  usecase "CU-19\nVer la serie de una celda del mapa" as CU19
+  usecase "CU-21\nCalcular la climatología y la anomalía" as CU21
+  usecase "CU-26\nObtener los datos de una fuente" as CU26
+  usecase "CU-27\nUsar la celda válida más cercana" as CU27
+}
+
+oc -- CU13
+oc -- CU17
+oc -- CU20
+oc -- CU22
+oc -- CU23
+oc -- CU24
+oc -- CU25
+CU13 ..> CU14 : <<include>>
+CU15 ..> CU13 : <<extend>>
+CU16 ..> CU13 : <<extend>>
+CU18 ..> CU17 : <<extend>>
+CU19 ..> CU17 : <<extend>>
+CU21 ..> CU17 : <<extend>>
+CU21 ..> CU20 : <<extend>>
+CU20 ..> CU26 : <<include>>
+CU22 ..> CU26 : <<include>>
+CU23 ..> CU26 : <<include>>
+CU24 ..> CU26 : <<include>>
+CU25 ..> CU26 : <<include>>
+CU27 ..> CU26 : <<extend>>
+no -- CU26
+co -- CU26
+ch -- CU26
+
+note "CU-17 también incluye CU-26; la línea se omite para no cruzar el diagrama." as N1
+@enduml

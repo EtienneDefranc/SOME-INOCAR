@@ -1,0 +1,44 @@
+@startuml AD-04-generar-un-reporte-pdf
+title AD-04 Generar un reporte PDF
+|Oceanógrafo|
+|SOME (API)|
+|Cola de trabajos|
+|Oceanógrafo|
+start
+:Abrir el módulo Reportes;
+if (¿Plantilla o reporte propio?) then (plantilla)
+  :Elegir la plantilla y completar sus parámetros;
+else (propio)
+  :Escribir el título, el destinatario y el periodo;
+  :Agregar y ordenar las secciones: mapas, series, perfiles, comparaciones, tablas y textos;
+  if (¿Guardarlo como plantilla?) then (sí)
+    |SOME (API)|
+    :Guardar la plantilla privada o del departamento (RF-09.3);
+  else (no)
+  endif
+endif
+repeat
+  |Oceanógrafo|
+  :Pulsar «Generar»;
+  |SOME (API)|
+  :Validar los parámetros y crear el trabajo (RF-09.1);
+  fork
+    |Oceanógrafo|
+    :Seguir trabajando en otro módulo;
+  fork again
+    |SOME (API)|
+    :Mostrar el estado y el avance en la lista de trabajos;
+  fork again
+    |Cola de trabajos|
+    :Tomar el trabajo de la cola;
+    :Consultar las fuentes (AD-02) y generar las figuras y las tablas;
+    :Componer el PDF en español con créditos, periodo de referencia y fecha de corte;
+    :Marcar el trabajo «Listo» o «Error» con su causa;
+  end fork
+  |SOME (API)|
+  :Avisar el resultado aunque el usuario esté en otro módulo;
+  |Oceanógrafo|
+repeat while (¿Está listo?) is (no: revisar la causa) not (sí)
+:Descargar o ver el PDF;
+stop
+@enduml

@@ -1,0 +1,34 @@
+@startuml AD-07-ingesta-nocturna-al-lago-de-datos
+title AD-07 Ingesta nocturna al lago de datos (Fase 2)
+|Temporizador|
+|Servicio de ingesta|
+|Lago de datos|
+|Responsable de datos|
+|Temporizador|
+start
+:A las 02:00, iniciar la ingesta nocturna;
+|Servicio de ingesta|
+:Consultar en el catálogo qué productos y fechas faltan;
+fork
+  :Traer el día anterior de OISST;
+fork again
+  :Traer el análisis diario de Copernicus;
+fork again
+  :Traer el día nuevo de CHIRPS (preliminar o final);
+end fork
+:Verificar la integridad de cada producto (suma de verificación);
+if (¿Producto íntegro?) then (no)
+  :Registrar el error y dejar el producto para el reintento;
+  end
+else (sí)
+  |Lago de datos|
+  :Guardar el original en la zona cruda (inmutable);
+  :Recortar y convertir a la zona curada (Zarr v3);
+  :Actualizar las climatologías;
+endif
+|Servicio de ingesta|
+:Actualizar el catálogo STAC y registrar la ejecución (RF-23);
+|Responsable de datos|
+:Revisar la disponibilidad y la fecha de corte de cada fuente;
+stop
+@enduml

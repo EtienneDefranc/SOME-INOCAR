@@ -1,0 +1,36 @@
+@startuml AD-02-construir-y-ejecutar-una-consulta
+title AD-02 Construir y ejecutar una consulta
+|Oceanógrafo|
+|SOME (API y motor)|
+|Fuente externa|
+|Oceanógrafo|
+start
+:Elegir la fuente y la variable (solo las habilitadas);
+repeat
+  |Oceanógrafo|
+  :Elegir el área: punto, rectángulo, lista de puntos, recorte o área favorita;
+  :Elegir la fecha o el rango (o un atajo) y la profundidad;
+  :Pulsar «Mapa», «Serie», «Perfil» o «Comparar»;
+  |SOME (API y motor)|
+  :Validar la consulta (RF-02.4);
+  backward :Mostrar la causa del error y qué hacer (RNF-15);
+repeat while (¿Es válida?) is (no) not (sí)
+if (¿Excede lo publicado por la fuente?) then (sí)
+  :Recortar al periodo disponible y avisarlo;
+else (no)
+endif
+if (¿Los datos están en la caché o en el lago?) then (no)
+  :Pedir a la fuente solo lo que falta, a su ritmo (RNF-13);
+  |Fuente externa|
+  :Entregar el subconjunto pedido;
+  |SOME (API y motor)|
+  :Guardar lo recibido. Si la fuente no responde, marcarla «Sin conexión» y servir lo guardado (RNF-18);
+else (sí)
+endif
+:Calcular: celda válida más cercana, recorte, promedios y anomalía;
+:Agregar crédito, método, fecha de corte, procedencia y avisos (RF-12, RNF-26);
+:Mostrar el resultado con su insignia de procedencia;
+|Oceanógrafo|
+:Revisar, exportar o guardar la vista;
+stop
+@enduml

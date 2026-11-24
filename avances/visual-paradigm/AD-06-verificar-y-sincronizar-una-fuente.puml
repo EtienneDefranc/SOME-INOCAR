@@ -1,0 +1,42 @@
+@startuml AD-06-verificar-y-sincronizar-una-fuente
+title AD-06 Verificar y sincronizar una fuente
+|Temporizador|
+|SOME (conector)|
+|Fuente|
+|Administrador|
+|Temporizador|
+start
+:Disparar la verificación: cada 6 h, o cada 30 min tras una falla;
+|SOME (conector)|
+if (¿Está en pausa por fallas?) then (sí)
+  end
+else (no)
+endif
+:Esperar el turno del servidor (RNF-13);
+:Pedir lo publicado y hacer una lectura de prueba;
+|Fuente|
+:Responder (o no responder);
+|SOME (conector)|
+if (¿Respuesta correcta?) then (sí)
+  :Descargar lo nuevo y renovar los días preliminares;
+  :Estado: «Operativa»;
+else (no)
+  :Esperar más tiempo (Retry-After) y contar la falla;
+  if (¿Tres fallas seguidas?) then (sí)
+    :Pausar de 10 a 15 min. Estado: «Sin conexión»;
+    fork
+      :Avisar al administrador;
+    fork again
+      |Administrador|
+      :Revisar el aviso. Si son las credenciales, actualizarlas y pedir el reintento;
+      detach
+    end fork
+    |SOME (conector)|
+  else (no)
+    :Estado: «Degradada»;
+  endif
+endif
+:Registrar la verificación en el historial de 14 días;
+:Mostrar el estado y la fecha de corte. Avisar en las consultas afectadas (RF-21);
+stop
+@enduml

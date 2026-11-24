@@ -1,0 +1,30 @@
+@startuml AD-03-escenario-1-anomalia-cn-erfen
+title AD-03 Escenario 1: la anomalía de temperatura para el informe del CN-ERFEN
+|Oceanógrafa|
+|SOME|
+|Oceanógrafa|
+start
+:Iniciar sesión (AD-01);
+|SOME|
+:Mostrar el panel con sus variables y sus áreas favoritas;
+|Oceanógrafa|
+:Elegir el área favorita «Niño 1+2», la temperatura superficial (NOAA OISST) y del 16/09/2026 al 30/09/2026;
+:Pulsar «Anomalía» con el periodo de referencia 1991-2020;
+|SOME|
+:Obtener los datos de la fuente (AD-02);
+:Calcular la anomalía: valor menos la climatología del mes (RF-08);
+fork
+  :Dibujar el mapa con la paleta divergente;
+fork again
+  :Calcular la serie diaria del promedio del área;
+end fork
+:Mostrar el mapa y la serie con «Periodo de referencia: 1991-2020»;
+|Oceanógrafa|
+:Revisar el valor del 23/09/2026 (+4.7 °C);
+:Pulsar «Agregar al reporte» y elegir la plantilla «Boletín CN-ERFEN»;
+|SOME|
+:Generar el PDF en segundo plano (AD-04);
+|Oceanógrafa|
+:Descargar el PDF con la fuente, el crédito, el periodo de referencia y la fecha de corte;
+stop
+@enduml

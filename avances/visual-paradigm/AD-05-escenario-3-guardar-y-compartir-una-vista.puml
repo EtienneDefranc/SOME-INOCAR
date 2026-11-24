@@ -1,0 +1,29 @@
+@startuml AD-05-escenario-3-guardar-y-compartir-una-vista
+title AD-05 Escenario 3: guardar y compartir una vista
+|Oceanógrafa|
+|SOME|
+|Jefe de departamento|
+|Oceanógrafa|
+start
+:Consultar el perfil y la cortina en 1.0° N, 80.0° O, últimos 90 días;
+|SOME|
+:Mostrar el perfil, la cortina y la capa de mezcla;
+|Oceanógrafa|
+:Pulsar «Guardar vista» y escribir «Esmeraldas: columna de agua»;
+|SOME|
+:Guardar la vista privada con todos sus parámetros (RF-16);
+|Oceanógrafa|
+if (¿Compartirla?) then (sí)
+  :Elegir con quién compartirla en solo lectura;
+  |SOME|
+  :Marcarla como compartida y mostrarla en «Compartidas conmigo»;
+  |Jefe de departamento|
+  :Abrir la vista desde «Compartidas conmigo»;
+  |SOME|
+  :Recalcular con los mismos parámetros;
+  |Jefe de departamento|
+  :Revisar el resultado (no puede renombrarla ni eliminarla);
+else (no)
+endif
+stop
+@enduml

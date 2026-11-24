@@ -1,0 +1,36 @@
+@startuml AD-01-iniciar-y-cerrar-sesion
+title AD-01 Iniciar y cerrar sesión
+|Usuario|
+|SOME|
+|Usuario|
+start
+:Abrir SOME en el navegador;
+|SOME|
+if (¿Hay una sesión activa?) then (no)
+  :Mostrar la pantalla de acceso;
+  repeat
+    |Usuario|
+    :Escribir el usuario y la contraseña;
+    |SOME|
+    :Verificar las credenciales y que la cuenta esté activa;
+    backward :Mostrar «Usuario o contraseña incorrectos»;
+  repeat while (¿Credenciales válidas y cuenta activa?) is (no) not (sí)
+  if (¿La contraseña es temporal?) then (sí)
+    :Pedir una contraseña nueva;
+    |Usuario|
+    :Escribir y confirmar la contraseña nueva;
+    |SOME|
+    :Guardar su resumen Argon2id;
+  else (no)
+  endif
+  :Crear la sesión y registrar el ingreso;
+else (sí)
+endif
+:Mostrar el panel personal con las funciones de su rol (RF-01.4);
+|Usuario|
+:Trabajar en los módulos que permite su rol;
+:Pulsar «Salir» (o pasan 8 h sin actividad);
+|SOME|
+:Cerrar la sesión y volver a la pantalla de acceso;
+stop
+@enduml

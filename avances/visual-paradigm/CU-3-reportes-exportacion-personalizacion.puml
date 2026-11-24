@@ -1,0 +1,49 @@
+@startuml CU-3-reportes-exportacion-personalizacion
+title Casos de uso: reportes, exportación y personalización
+left to right direction
+skinparam actorStyle default
+skinparam usecase {
+  BackgroundColor<<Fase 2>> #E6F4EA
+  BackgroundColor<<Fase 3>> #F1E9F7
+  BackgroundColor<<Por definir>> #FFF6E0
+}
+
+actor "Oceanógrafo" as oc
+actor "Jefe de departamento / revisor" as je
+
+rectangle "SOME" {
+  usecase "CU-28\nGenerar un reporte desde una plantilla" as CU28
+  usecase "CU-29\nArmar un reporte propio" as CU29
+  usecase "CU-33\nExportar datos y gráficas (CSV, PNG y SVG)" as CU33
+  usecase "CU-34\nExportar un recorte en NetCDF" as CU34
+  usecase "CU-32\nAgregar una figura a un reporte en preparación" as CU32
+  usecase "CU-35\nConfigurar el panel personal" as CU35
+  usecase "CU-36\nGuardar un área favorita" as CU36
+  usecase "CU-37\nGuardar una vista" as CU37
+  usecase "CU-40\nRevisar y aprobar reportes" as CU40 <<Por definir>>
+  usecase "CU-39\nAbrir una vista compartida" as CU39
+  usecase "CU-30\nSeguir la generación en segundo plano" as CU30
+  usecase "CU-31\nGuardar el reporte como plantilla" as CU31
+  usecase "CU-38\nCompartir una vista en solo lectura" as CU38
+}
+
+je --|> oc
+oc -- CU28
+oc -- CU29
+oc -- CU33
+oc -- CU32
+oc -- CU35
+oc -- CU36
+oc -- CU37
+oc -- CU34
+je -- CU40
+je -- CU39
+CU28 ..> CU30 : <<include>>
+CU29 ..> CU30 : <<include>>
+CU31 ..> CU29 : <<extend>>
+CU38 ..> CU37 : <<extend>>
+
+note "CU-40 sale de la tabla 4 de la SRS (el jefe «revisa y aprueba reportes») pero no tiene requerimiento: borde discontinuo, por definir con el INOCAR." as N1
+
+note "CU-39 abre en solo lectura una vista que otro usuario compartió con CU-38. CU-32 se inicia desde los módulos de análisis (figura 3)." as N2
+@enduml

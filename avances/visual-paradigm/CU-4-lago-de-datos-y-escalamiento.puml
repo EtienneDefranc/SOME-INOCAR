@@ -1,0 +1,49 @@
+@startuml CU-4-lago-de-datos-y-escalamiento
+title Casos de uso: lago de datos (Fase 2) y escalamiento (Fase 3)
+left to right direction
+skinparam actorStyle default
+skinparam usecase {
+  BackgroundColor<<Fase 2>> #E6F4EA
+  BackgroundColor<<Fase 3>> #F1E9F7
+  BackgroundColor<<Por definir>> #FFF6E0
+}
+
+actor "Oceanógrafo" as oc
+actor "Jefe de departamento / revisor" as je
+actor "Administrador de TI" as ad
+actor "Temporizador del sistema" as te <<sistema>>
+actor "NOAA OISST, Copernicus Marine y CHIRPS v3" as fu <<sistema>>
+actor "Boyas del INOCAR" as bo <<sistema>>
+actor "Personal de otro departamento" as ot <<Fase 3>>
+
+rectangle "SOME" {
+  usecase "CU-49\nConsultar desde la aplicación móvil" as CU49 <<Fase 3>>
+  usecase "CU-47\nCargar archivos propios" as CU47 <<Fase 2>>
+  usecase "CU-50\nImportar y validar los datos de las boyas" as CU50 <<Fase 3>>
+  usecase "CU-48\nDefinir alertas y reportes programados" as CU48 <<Fase 3>>
+  usecase "CU-44\nElegir el modo de almacenamiento" as CU44 <<Fase 2>>
+  usecase "CU-46\nVigilar la caché y el lago" as CU46 <<Fase 2>>
+  usecase "CU-41\nIngerir las fuentes al lago de datos" as CU41 <<Fase 2>>
+  usecase "CU-42\nCatalogar el conjunto en STAC" as CU42 <<Fase 2>>
+  usecase "CU-51\nConsultar las fuentes de su departamento" as CU51 <<Fase 3>>
+  usecase "CU-45\nAprobar el cambio de modo" as CU45 <<Fase 2>>
+  usecase "CU-43\nResolver la consulta por partes" as CU43 <<Fase 2>>
+  usecase "CU-26\nObtener los datos de una fuente" as CU26
+}
+
+oc -- CU49
+oc -- CU47
+oc -- CU50
+je -- CU48
+ad -- CU44
+ad -- CU46
+te -- CU41
+fu -- CU41
+CU41 ..> CU42 : <<include>>
+bo -- CU50
+ot -- CU51
+CU44 ..> CU45 : <<include>>
+CU43 ..> CU26 : <<extend>>
+
+note "CU-26 es de la Fase 1 (figura 3); en la Fase 2 lee primero el lago y la caché." as N1
+@enduml

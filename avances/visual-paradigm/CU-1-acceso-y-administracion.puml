@@ -1,0 +1,49 @@
+@startuml CU-1-acceso-y-administracion
+title Casos de uso: acceso y administración
+left to right direction
+skinparam actorStyle default
+skinparam usecase {
+  BackgroundColor<<Fase 2>> #E6F4EA
+  BackgroundColor<<Fase 3>> #F1E9F7
+  BackgroundColor<<Por definir>> #FFF6E0
+}
+
+actor "Oceanógrafo (y todo rol)" as oc
+actor "Administrador de TI" as ad
+actor "Temporizador del sistema" as te <<sistema>>
+actor "NOAA OISST, Copernicus Marine y CHIRPS v3" as fu <<sistema>>
+
+rectangle "SOME" {
+  usecase "CU-01\nIniciar sesión" as CU01
+  usecase "CU-02\nCambiar la contraseña temporal" as CU02
+  usecase "CU-03\nCerrar sesión" as CU03
+  usecase "CU-04\nConsultar el estado de las fuentes" as CU04
+  usecase "CU-12\nVerificar y sincronizar las fuentes" as CU12
+  usecase "CU-05\nGestionar cuentas de usuario" as CU05
+  usecase "CU-06\nRestablecer la contraseña de un usuario" as CU06
+  usecase "CU-07\nGestionar el catálogo de fuentes y variables" as CU07
+  usecase "CU-08\nGestionar los recortes geográficos" as CU08
+  usecase "CU-09\nGestionar las credenciales de las fuentes" as CU09
+  usecase "CU-10\nConsultar el registro de auditoría" as CU10
+  usecase "CU-11\nRegistrar la acción en la auditoría" as CU11
+}
+
+oc -- CU01
+oc -- CU03
+oc -- CU04
+CU02 ..> CU01 : <<extend>>
+ad -- CU05
+ad -- CU07
+ad -- CU08
+ad -- CU09
+ad -- CU10
+CU06 ..> CU05 : <<extend>>
+CU05 ..> CU11 : <<include>>
+CU07 ..> CU11 : <<include>>
+CU08 ..> CU11 : <<include>>
+CU09 ..> CU11 : <<include>>
+te -- CU12
+fu -- CU12
+
+note "CU-04 muestra lo que registra CU-12: estado, fecha de corte e historial de 14 días." as N1
+@enduml
