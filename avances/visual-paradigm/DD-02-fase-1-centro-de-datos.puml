@@ -1,0 +1,45 @@
+@startuml DD-02-fase-1-centro-de-datos
+title DD-02 Fase 1 en el centro de datos del INOCAR (consulta en línea)
+
+node "Computadora del usuario (Windows 10 u 11)" as pc <<device>> {
+  node "Navegador web" as nav1 <<executionEnvironment>>
+}
+node "Tableta (1024 px o más)" as tab <<device>> {
+  node "Navegador web" as nav2 <<executionEnvironment>>
+}
+rectangle "Centro de datos del INOCAR" as dc {
+  node "Servidor de aplicaciones (Linux)" as app <<device>> {
+    node "Motor de contenedores (imágenes OCI, Docker)" as oci <<executionEnvironment>> {
+      artifact "Proxy inverso con TLS (HTTPS)" as proxy <<contenedor>>
+      artifact "API de SOME (FastAPI) e interfaz web" as api <<contenedor>>
+      artifact "Motor de procesamiento y conectores (Python, xarray)" as motor <<contenedor>>
+      artifact "Trabajador de la cola: reportes PDF y exportaciones" as cola <<contenedor>>
+      artifact "Caché de las fuentes (volumen persistente)" as cache <<volumen>>
+      artifact "Credenciales de las fuentes (secretos, RNF-21)" as sec <<secreto>>
+    }
+  }
+  node "Servidor de base de datos (Linux)" as bd <<device>> {
+    node "PostgreSQL 16 con PostGIS 3" as pg <<executionEnvironment>> {
+      artifact "Base de datos de la aplicación: usuarios, paneles, vistas, catálogo, recortes, trabajos y auditoría" as db
+    }
+  }
+}
+node "NOAA (PSL y NCEI)" as noaa <<sistema externo>>
+node "Copernicus Marine" as cmems <<sistema externo>>
+node "CHIRPS v3 (CHC y réplica)" as chirps <<sistema externo>>
+
+pc -- proxy : HTTPS
+tab -- proxy : HTTPS
+app -- noaa
+app -- cmems
+app -- chirps
+app -- bd : SQL (TCP 5432)
+
+note as N1
+  Propuesta: el área de tecnología del INOCAR define servidores, red, VPN y certificados. Los usuarios entran por HTTPS desde la red del INOCAR o por VPN. Todo lo que el sistema guarda queda en el centro de datos (RNF-04) y se entrega en contenedores (RNF-12).
+end note
+
+note as N2
+  Solo conexiones salientes por HTTPS, a una petición por vez según el ritmo de cada fuente (RNF-13).
+end note
+@enduml

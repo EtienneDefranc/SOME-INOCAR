@@ -1,0 +1,50 @@
+@startuml DD-03-fase-2-lago-de-datos
+title DD-03 Fase 2: lago de datos en el centro de datos del INOCAR
+
+node "Computadora del usuario (navegador)" as pc <<device>>
+rectangle "Centro de datos del INOCAR" as dc {
+  node "Servidor de aplicaciones (contenedores)" as app <<device>> {
+    artifact "API de SOME e interfaz web" as api <<contenedor>>
+    artifact "Motor de procesamiento" as motor <<contenedor>>
+    artifact "Cola de trabajos" as cola <<contenedor>>
+    artifact "Caché de lo más consultado" as cache <<volumen>>
+  }
+  node "Servidor de ingesta (contenedores)" as ing <<device>> {
+    artifact "Servicio de ingesta (02:00, reanudable)" as ingesta <<contenedor>>
+    artifact "Catálogo STAC 1.0" as stac <<contenedor>>
+    artifact "Conectores de carga masiva" as carga <<contenedor>>
+  }
+  node "Servidor de almacenamiento" as alm <<device>> {
+    node "MinIO (compatible con S3)" as minio <<executionEnvironment>> {
+      artifact "Zona cruda: originales comprimidos" as cruda
+      artifact "Zona curada: Zarr v3, climatologías y anomalías" as curada
+    }
+  }
+  node "Servidor de base de datos (Linux)" as bd <<device>> {
+    artifact "PostgreSQL 16 + PostGIS 3: aplicación, registro de consultas y de ingestas" as db
+  }
+  node "Almacenamiento de respaldo (ubicación por definir)" as resp <<device>>
+}
+node "NOAA Open Data (AWS S3 o Google Cloud)" as ods <<sistema externo>>
+node "Copernicus Marine (get o subset)" as cmems <<sistema externo>>
+node "Servidor del CHC (rsync o FTP)" as chc <<sistema externo>>
+node "Réplica de dynamical.org (S3)" as dyn <<sistema externo>>
+
+pc -- app : HTTPS
+app -- alm : S3 (HTTPS)
+ing -- alm : S3 (HTTPS)
+app -- bd : SQL
+ing -- ods
+ing -- cmems
+ing -- chc
+ing -- dyn
+bd -- resp : copia diaria (RNF-19)
+
+note as N1
+  Verde: elementos nuevos de la Fase 2. La API lee primero el lago y la caché, y pide a las fuentes solo lo que falte (RF-30).
+end note
+
+note as N2
+  La ingesta también escribe su registro en la base de datos y en el catálogo STAC (RF-23).
+end note
+@enduml

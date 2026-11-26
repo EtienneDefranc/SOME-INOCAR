@@ -1,0 +1,42 @@
+@startuml DD-01-prototipo-demostrativo
+title DD-01 Prototipo demostrativo (Fase 1)
+
+node "Computadora de demostración del equipo T5 (Windows 10 u 11)" as pc <<device>> {
+  node "Navegador web (Chrome, Edge o Firefox)" as nav <<executionEnvironment>> {
+    artifact "Interfaz web (index.html, app.js y módulos)" as web
+    artifact "Leaflet 1.9.4 y Plotly 2.35.2 (desde CDN)" as lib
+  }
+  node "Python 3.13 (entorno .venv)" as py <<executionEnvironment>> {
+    artifact "Servidor FastAPI y uvicorn (puerto 8050)" as api
+    artifact "Motor de procesamiento (motor.py, xarray)" as motor
+    artifact "Conectores de NOAA, Copernicus y CHIRPS" as con
+    artifact "Hilos de sincronización (cada 6 h)" as sinc
+    artifact "Cola de trabajos y reportes PDF (reportlab)" as cola
+    artifact "Copernicus Marine Toolbox (credenciales del usuario)" as tbx
+  }
+  node "Sistema de archivos (carpeta datos/)" as fs <<executionEnvironment>> {
+    artifact "JSON: usuarios, paneles, vistas y auditoría" as json
+    artifact "Cachés .npz de las tres fuentes" as npz
+    artifact "Reportes PDF generados" as pdf
+  }
+}
+node "CDN y teselas de OpenStreetMap" as cdn <<sistema externo>>
+node "NOAA PSL (THREDDS NCSS)" as psl <<sistema externo>>
+node "NOAA NCEI (archivos diarios)" as ncei <<sistema externo>>
+node "Copernicus Marine (servicio ARCO)" as cmems <<sistema externo>>
+node "Servidor del CHC (CHIRPS v3)" as chc <<sistema externo>>
+node "Réplica de dynamical.org (AWS S3)" as dyn <<sistema externo>>
+
+nav -- py : HTTP 127.0.0.1:8050 (API REST)
+nav -- cdn : HTTPS
+py -- psl : HTTPS
+py -- ncei : HTTPS
+py -- cmems : HTTPS
+py -- chc : HTTPS
+py -- dyn : S3 anónimo
+py -- fs : lectura y escritura
+
+note as N1
+  Sin red, las fuentes sirven solo lo que tienen en caché y el simulador responde, señalado, si falta el dato.
+end note
+@enduml

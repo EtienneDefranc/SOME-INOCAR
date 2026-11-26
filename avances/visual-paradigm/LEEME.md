@@ -9,6 +9,7 @@ Scripts PlantUML de los diagramas del adelanto, para importarlos en Visual Parad
 | `CU-3-reportes-exportacion-personalizacion.puml` | Casos de uso: reportes, exportación y personalización |
 | `CU-4-lago-de-datos-y-escalamiento.puml` | Casos de uso: lago de datos (Fase 2) y escalamiento (Fase 3) |
 | `AD-01` a `AD-07` | Diagramas de actividades, con un carril por participante |
+| `DD-01` a `DD-04` | Diagramas de despliegue: prototipo, Fase 1, Fase 2 y Fase 3 |
 
 ## Cómo importarlos
 

@@ -1,0 +1,39 @@
+@startuml DD-04-fase-3-escalamiento
+title DD-04 Fase 3: escalamiento
+
+node "Teléfono o tableta" as mov <<device>> {
+  artifact "Aplicación móvil o web progresiva (RF-26)" as app_m
+}
+node "Computadora de otro departamento (navegador)" as otro <<device>>
+node "Computadora del usuario (navegador)" as pc <<device>>
+rectangle "Centro de datos del INOCAR" as dc {
+  node "Servidor de aplicaciones (contenedores)" as app <<device>> {
+    artifact "API de SOME e interfaz web" as api <<contenedor>>
+    artifact "Servicio de alertas y reportes programados (RF-25)" as alertas <<contenedor>>
+    artifact "Importador y validador de boyas (RF-27)" as imp <<contenedor>>
+    artifact "Espacios y permisos por departamento (RNF-09)" as dep <<configuración>>
+    artifact "Motor, cola de trabajos y caché (como en DD-03)" as resto <<contenedor>>
+  }
+  node "Servidores de almacenamiento y de base de datos (Fase 2)" as lago <<device>> {
+    artifact "MinIO: zonas cruda y curada" as lagoA
+    artifact "PostgreSQL + PostGIS" as bdA
+  }
+  node "Servidor de ingesta (Fase 2)" as ing <<device>>
+}
+node "Servidor de correo del INOCAR (SMTP)" as smtp <<sistema externo>>
+node "Archivos de texto de las boyas del INOCAR" as boyas <<sistema externo>>
+node "NOAA, Copernicus Marine y CHIRPS (HTTPS, rsync o FTP)" as fuentes <<sistema externo>>
+
+mov -- api
+otro -- api
+pc -- api
+alertas -- smtp
+boyas -- imp
+app -- lago : S3 y SQL
+ing -- lago
+ing -- fuentes
+
+note as N1
+  Morado con borde discontinuo: elementos nuevos de la Fase 3. Todos los usuarios entran por HTTPS. El correo y la integración con los archivos de las boyas dependen del área de tecnología del INOCAR.
+end note
+@enduml
